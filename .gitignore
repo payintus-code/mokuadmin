@@ -1,0 +1,11 @@
+.next/
+.buildcheck/
+.releasecheck/
+node_modules/
+coverage/
+*.log
+tsconfig.tsbuildinfo
+.env
+.env.*
+!.env.example
+

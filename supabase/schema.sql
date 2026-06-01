@@ -348,7 +348,10 @@ as $$
     b.booking_no,
     b.booking_type,
     b.status,
-    coalesce(bp.status, 'pending'::public.payment_status) as payment_status,
+    case
+      when coalesce(bp.amount, 0) >= b.total_amount and b.total_amount > 0 then 'paid'::public.payment_status
+      else coalesce(bp.status, 'pending'::public.payment_status)
+    end as payment_status,
     b.start_at,
     b.end_at,
     c.full_name as customer_name,
@@ -365,7 +368,7 @@ as $$
   left join public.booking_items bi on bi.booking_id = b.id
   left join public.services s on s.id = bi.service_id
   where tstzrange(b.start_at, b.end_at, '[)') && tstzrange(p_day::timestamptz, (p_day + 1)::timestamptz, '[)')
-  group by b.id, c.full_name, p1.name, p2.name, r.name, bp.status
+  group by b.id, c.full_name, p1.name, p2.name, r.name, bp.status, bp.amount
   order by b.start_at, b.created_at;
 $$;
 

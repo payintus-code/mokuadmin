@@ -294,6 +294,42 @@ textarea:focus-visible {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4);
 }
 
+.date-input-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.date-input-row .input {
+  flex: 1;
+}
+
+.date-picker-button {
+  flex: 0 0 auto;
+  width: 50px;
+  min-width: 50px;
+  min-height: 50px;
+  border: 1px solid var(--line-strong);
+  border-radius: 18px;
+  background: rgba(255, 248, 241, 0.9);
+  color: var(--brand-strong);
+  cursor: pointer;
+}
+
+.date-picker-button:hover {
+  background: rgba(255, 243, 228, 0.98);
+  border-color: rgba(140, 90, 57, 0.22);
+}
+
+.date-picker-native {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
 .input::placeholder,
 .textarea::placeholder {
   color: #ad9c90;
@@ -1224,6 +1260,45 @@ textarea:focus-visible {
 
 .booking-review-section {
   gap: 14px;
+}
+
+.booking-review-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(52, 37, 29, 0.38);
+  backdrop-filter: blur(8px);
+}
+
+.booking-review-modal {
+  width: min(920px, 100%);
+  max-height: min(88vh, 920px);
+  overflow: auto;
+  display: grid;
+  gap: 16px;
+  padding: 20px;
+  border-radius: 28px;
+  background: linear-gradient(180deg, rgba(255, 252, 248, 0.98) 0%, rgba(255, 247, 239, 0.98) 100%);
+  box-shadow: var(--shadow-lg);
+}
+
+.booking-review-modal-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.booking-review-close {
+  width: auto;
+}
+
+.booking-review-modal-actions {
+  display: grid;
+  gap: 12px;
 }
 
 .booking-summary-card {

@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { requireAppUser } from "@/lib/auth";
 import { confirmBookingPayment, updateBookingPayment } from "@/lib/payments";
 import type { PaymentMethod } from "@/types/database";
@@ -33,6 +34,7 @@ export async function confirmPayment(formData: FormData) {
   revalidatePath(`/payments/${bookingId}`);
   revalidatePath(`/bookings/${bookingId}`);
   revalidatePath(`/receipts/${bookingId}`);
+  redirect(`/payments/${bookingId}`);
 }
 
 export async function updateRecordedPayment(formData: FormData) {
@@ -63,4 +65,5 @@ export async function updateRecordedPayment(formData: FormData) {
   revalidatePath(`/payments/${bookingId}`);
   revalidatePath(`/bookings/${bookingId}`);
   revalidatePath(`/receipts/${bookingId}`);
+  redirect(`/payments/${bookingId}`);
 }

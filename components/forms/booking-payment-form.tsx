@@ -82,6 +82,7 @@ export function BookingPaymentForm({
           <label className="label">
             ยอดรับเพิ่ม
             <input className="input" name="amount" type="number" min="0.01" max={remainingAmount} step="0.01" defaultValue={remainingAmount} required />
+            <p className="label-hint">à¸à¸£à¸­à¸à¹€à¸‰à¸žà¸²à¸°à¸¢à¸­à¸”à¸—à¸µà¹ˆà¸£à¸±à¸šà¹€à¸žà¸´à¹ˆà¸¡à¸„à¸£à¸±à¹‰à¸‡à¸™à¸µà¹‰ à¹„à¸¡à¹ˆà¹ƒà¸Šà¹ˆà¸¢à¸­à¸”à¸ªà¸°à¸ªà¸¡à¸—à¸±à¹‰à¸‡à¸«à¸¡à¸”</p>
           </label>
         ) : null}
 

@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import { resolvePaymentStatus } from "@/lib/payment-status";
 import { createClient } from "@/lib/supabase/server";
 import { evaluateGroomingDraftAvailability, type GroomingOverlapRow } from "@/lib/grooming-draft";
 import type { BookingDetailViewModel, BookingPayment, BookingStatus, BookingType, DailyScheduleItem } from "@/types/database";
@@ -53,7 +54,10 @@ function mapBookingToScheduleItem(booking: {
   pets?: { name?: string } | Array<{ name?: string }> | null;
   secondary_pets?: { name?: string } | Array<{ name?: string }> | null;
   rooms?: { name?: string } | Array<{ name?: string }> | null;
-  booking_payments?: { status?: DailyScheduleItem["payment_status"] } | Array<{ status?: DailyScheduleItem["payment_status"] }> | null;
+  booking_payments?:
+    | { status?: DailyScheduleItem["payment_status"]; amount?: number | string | null }
+    | Array<{ status?: DailyScheduleItem["payment_status"]; amount?: number | string | null }>
+    | null;
   booking_items?:
     | Array<{
         services?: { name?: string } | Array<{ name?: string }> | null;
@@ -65,13 +69,18 @@ function mapBookingToScheduleItem(booking: {
   const secondaryPet = toSingle(booking.secondary_pets);
   const room = toSingle(booking.rooms);
   const payment = toSingle(booking.booking_payments);
+  const paymentStatus = resolvePaymentStatus({
+    totalAmount: Number(booking.total_amount),
+    paidAmount: Number(payment?.amount ?? 0),
+    storedStatus: payment?.status ?? "pending"
+  });
 
   return {
     booking_id: booking.id,
     booking_no: booking.booking_no,
     booking_type: booking.booking_type,
     status: booking.status,
-    payment_status: payment?.status ?? "pending",
+    payment_status: paymentStatus,
     start_at: booking.start_at,
     end_at: booking.end_at,
     customer_name: customer?.full_name ?? "-",
@@ -124,7 +133,7 @@ function buildFallbackBookingNo(date = new Date()) {
 }
 
 export async function getDailySchedule(day: string): Promise<DailyScheduleItem[]> {
-  const supabase = await createClient();
+  const supabase = createAdminClient();
   const { data, error } = await supabase.rpc("get_daily_schedule", { p_day: day });
 
   if (error) {
@@ -135,7 +144,7 @@ export async function getDailySchedule(day: string): Promise<DailyScheduleItem[]
 }
 
 export async function getScheduleByStatus(status: BookingStatus): Promise<DailyScheduleItem[]> {
-  const supabase = await createClient();
+  const supabase = createAdminClient();
   const { data, error } = await supabase
     .from("bookings")
     .select(
@@ -144,7 +153,7 @@ export async function getScheduleByStatus(status: BookingStatus): Promise<DailyS
         booking_no,
         booking_type,
         status,
-        booking_payments(status),
+        booking_payments(status, amount),
         start_at,
         end_at,
         total_amount,
@@ -173,7 +182,7 @@ export async function getScheduleByStatus(status: BookingStatus): Promise<DailyS
 }
 
 export async function getScheduleInRange(startAt: string, endAtExclusive: string): Promise<DailyScheduleItem[]> {
-  const supabase = await createClient();
+  const supabase = createAdminClient();
   const { data, error } = await supabase
     .from("bookings")
     .select(
@@ -182,7 +191,7 @@ export async function getScheduleInRange(startAt: string, endAtExclusive: string
         booking_no,
         booking_type,
         status,
-        booking_payments(status),
+        booking_payments(status, amount),
         start_at,
         end_at,
         total_amount,
@@ -212,7 +221,7 @@ export async function getScheduleInRange(startAt: string, endAtExclusive: string
 }
 
 export async function getBookingDetail(bookingId: string): Promise<BookingDetailViewModel> {
-  const supabase = await createClient();
+  const supabase = createAdminClient();
   const { data, error } = await supabase
     .from("bookings")
     .select(
@@ -245,7 +254,11 @@ export async function getBookingDetail(bookingId: string): Promise<BookingDetail
   const secondaryPet = toSingle(data.secondary_pets);
   const room = toSingle(data.rooms);
   const payment = toSingle(data.booking_payments) as BookingPayment | null;
-  const paymentStatus = payment?.status ?? "pending";
+  const paymentStatus = resolvePaymentStatus({
+    totalAmount: Number(data.total_amount),
+    paidAmount: Number(payment?.amount ?? 0),
+    storedStatus: payment?.status ?? "pending"
+  });
 
   return {
     booking_id: data.id,

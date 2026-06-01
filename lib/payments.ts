@@ -1,4 +1,5 @@
 import QRCode from "qrcode";
+import { resolvePaymentStatus } from "@/lib/payment-status";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import type { BookingPayment, PaymentMethod, ReceiptViewModel, ShopSettings } from "@/types/database";
@@ -11,6 +12,7 @@ type BookingPaymentSummary = {
   totalAmount: number;
   paidAmount: number;
   remainingAmount: number;
+  paymentStatus: BookingPayment["status"];
   customerId: string | null;
   customerName: string;
   petName: string;
@@ -23,6 +25,14 @@ type BookingPaymentSummary = {
 };
 
 const BUSINESS_TIME_ZONE = "Asia/Bangkok";
+const DEFAULT_SHOP_SETTINGS: ShopSettings = {
+  id: 1,
+  shop_name: "",
+  shop_address: null,
+  shop_phone: null,
+  promptpay_target: null,
+  receipt_prefix: "RC"
+};
 
 function toSingle<T>(value: T | T[] | null | undefined) {
   return Array.isArray(value) ? value[0] : value;
@@ -87,19 +97,26 @@ export function buildPromptPayPayload(target: string, amount: number) {
   return `${body}6304${crc16(`${body}6304`)}`;
 }
 
-async function getShopSettingsRecord() {
-  const supabase = await createClient();
+async function getShopSettingsRecord(useAdminClient = false) {
+  const supabase = useAdminClient ? createAdminClient() : await createClient();
   const { data, error } = await supabase
     .from("shop_settings")
     .select("id, shop_name, shop_address, shop_phone, promptpay_target, receipt_prefix")
     .eq("id", 1)
-    .single();
+    .maybeSingle();
 
-  if (error || !data) {
-    throw new Error(error?.message ?? "Shop settings not found");
+  if (error) {
+    throw new Error(error.message);
   }
 
-  return data as ShopSettings;
+  if (!data) {
+    return DEFAULT_SHOP_SETTINGS;
+  }
+
+  return {
+    ...DEFAULT_SHOP_SETTINGS,
+    ...data
+  } as ShopSettings;
 }
 
 async function generateReceiptNo(prefix: string, issuedAt: Date) {
@@ -120,9 +137,10 @@ async function generateReceiptNo(prefix: string, issuedAt: Date) {
   return `${prefix}${dayKey}-${String((count ?? 0) + 1).padStart(4, "0")}`;
 }
 
-export async function prepareBookingPayment(bookingId: string): Promise<BookingPaymentSummary> {
-  const supabase = await createClient();
-  const shop = await getShopSettingsRecord();
+export async function prepareBookingPayment(bookingId: string, options?: { useAdminClient?: boolean }): Promise<BookingPaymentSummary> {
+  const useAdminClient = options?.useAdminClient ?? false;
+  const supabase = useAdminClient ? createAdminClient() : await createClient();
+  const shop = await getShopSettingsRecord(useAdminClient);
   const { data, error } = await supabase
     .from("bookings")
     .select(
@@ -155,6 +173,11 @@ export async function prepareBookingPayment(bookingId: string): Promise<BookingP
   const payment = toSingle(data.booking_payments) as BookingPayment | null;
   const paidAmount = Number(payment?.amount ?? 0);
   const totalAmount = Number(data.total_amount);
+  const paymentStatus = resolvePaymentStatus({
+    totalAmount,
+    paidAmount,
+    storedStatus: payment?.status ?? "pending"
+  });
   const remainingAmount = Math.max(totalAmount - paidAmount, 0);
   const promptpayPayload = shop.promptpay_target && remainingAmount > 0 ? buildPromptPayPayload(shop.promptpay_target, remainingAmount) : null;
   const promptpayQrDataUrl = promptpayPayload ? await QRCode.toDataURL(promptpayPayload, { margin: 1, width: 320 }) : null;
@@ -167,6 +190,7 @@ export async function prepareBookingPayment(bookingId: string): Promise<BookingP
     totalAmount,
     paidAmount,
     remainingAmount,
+    paymentStatus,
     customerId: data.customer_id ?? null,
     customerName: customer?.full_name ?? "-",
     petName: [primaryPet?.name, secondaryPet?.name].filter((name): name is string => Boolean(name)).join(", ") || "-",
@@ -315,7 +339,7 @@ export async function createOrUpdateBookingPayment(input: {
   actorUserId?: string | null;
 }) {
   const supabase = createAdminClient();
-  const paymentInfo = await prepareBookingPayment(input.bookingId);
+  const paymentInfo = await prepareBookingPayment(input.bookingId, { useAdminClient: true });
 
   if (paymentInfo.bookingStatus === "cancelled") {
     throw new Error("Cannot receive payment for a cancelled booking");
@@ -329,15 +353,35 @@ export async function createOrUpdateBookingPayment(input: {
     throw new Error("Payment amount is invalid");
   }
 
-  const nextAmount = Number((paymentInfo.paidAmount + input.amount).toFixed(2));
   const hasKnownTotal = paymentInfo.totalAmount > 0;
+  const remainingAmount = hasKnownTotal ? Math.max(paymentInfo.totalAmount - paymentInfo.paidAmount, 0) : 0;
+  let incrementalAmount = Number(input.amount.toFixed(2));
+
+  // Staff sometimes enter the full booking total here after a deposit already exists.
+  // In that case, treat the submitted number as the desired cumulative paid amount.
+  if (
+    hasKnownTotal &&
+    paymentInfo.paidAmount > 0 &&
+    incrementalAmount - remainingAmount > 0.0001 &&
+    Math.abs(incrementalAmount - paymentInfo.totalAmount) <= 0.0001
+  ) {
+    incrementalAmount = Number((paymentInfo.totalAmount - paymentInfo.paidAmount).toFixed(2));
+  }
+
+  const nextAmount = Number((paymentInfo.paidAmount + incrementalAmount).toFixed(2));
 
   if (hasKnownTotal && nextAmount - paymentInfo.totalAmount > 0.0001) {
-    throw new Error("Payment exceeds booking total");
+    throw new Error(
+      `Payment exceeds booking total (total ${paymentInfo.totalAmount.toFixed(2)}, paid ${paymentInfo.paidAmount.toFixed(2)}, remaining ${remainingAmount.toFixed(2)})`
+    );
   }
 
   const paidAt = new Date();
-  const nextStatus = hasKnownTotal && nextAmount >= paymentInfo.totalAmount ? "paid" : "pending";
+  const nextStatus = resolvePaymentStatus({
+    totalAmount: paymentInfo.totalAmount,
+    paidAmount: nextAmount,
+    storedStatus: hasKnownTotal && nextAmount >= paymentInfo.totalAmount ? "paid" : "pending"
+  });
   const receiptNo =
     nextStatus === "paid" ? paymentInfo.payment?.receipt_no ?? (await generateReceiptNo(paymentInfo.shop.receipt_prefix, paidAt)) : null;
 
@@ -390,7 +434,7 @@ export async function updateBookingPayment(input: {
   actorUserId?: string | null;
 }) {
   const supabase = createAdminClient();
-  const paymentInfo = await prepareBookingPayment(input.bookingId);
+  const paymentInfo = await prepareBookingPayment(input.bookingId, { useAdminClient: true });
 
   if (!paymentInfo.payment) {
     throw new Error("Payment record not found");
@@ -443,7 +487,11 @@ export async function updateBookingPayment(input: {
   }
 
   const paidAt = new Date();
-  const nextStatus = hasKnownTotal && nextAmount >= paymentInfo.totalAmount ? "paid" : "pending";
+  const nextStatus = resolvePaymentStatus({
+    totalAmount: paymentInfo.totalAmount,
+    paidAmount: nextAmount,
+    storedStatus: hasKnownTotal && nextAmount >= paymentInfo.totalAmount ? "paid" : "pending"
+  });
   const receiptNo =
     nextStatus === "paid" ? paymentInfo.payment.receipt_no ?? (await generateReceiptNo(paymentInfo.shop.receipt_prefix, paidAt)) : null;
 
@@ -498,7 +546,7 @@ export async function confirmBookingPayment(input: {
 }
 
 export async function getReceiptData(bookingId: string): Promise<ReceiptViewModel> {
-  const paymentInfo = await prepareBookingPayment(bookingId);
+  const paymentInfo = await prepareBookingPayment(bookingId, { useAdminClient: true });
 
   if (!paymentInfo.payment || paymentInfo.payment.status !== "paid" || !paymentInfo.payment.receipt_no || !paymentInfo.payment.paid_at) {
     throw new Error("Receipt is not available for this booking yet");

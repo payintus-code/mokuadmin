@@ -310,28 +310,38 @@ export async function createBooking(formData: FormData) {
     ];
   }
 
-  const bookingId: string = await createBookingRecord({
-    bookingType: bookingType as "grooming" | "hotel",
-    customerId,
-    petId,
-    secondaryPetId: secondaryPetId || null,
-    roomId: roomId || null,
-    startAt: startAtIso,
-    endAt: endAtIso,
-    totalAmount,
-    note: combinedNote,
-    items,
-    actorUserId: currentUser.id
-  });
+  let bookingId: string | null = null;
 
-  if (paymentCollectionType !== "none" && normalizedReceivedAmount > 0) {
-    await createOrUpdateBookingPayment({
-      bookingId,
-      amount: normalizedReceivedAmount,
-      method: paymentMethod,
-      note: paymentNote || (paymentCollectionType === "deposit" ? "Deposit received during booking creation" : "Paid in full during booking creation"),
+  try {
+    bookingId = await createBookingRecord({
+      bookingType: bookingType as "grooming" | "hotel",
+      customerId,
+      petId,
+      secondaryPetId: secondaryPetId || null,
+      roomId: roomId || null,
+      startAt: startAtIso,
+      endAt: endAtIso,
+      totalAmount,
+      note: combinedNote,
+      items,
       actorUserId: currentUser.id
     });
+
+    if (paymentCollectionType !== "none" && normalizedReceivedAmount > 0) {
+      await createOrUpdateBookingPayment({
+        bookingId,
+        amount: normalizedReceivedAmount,
+        method: paymentMethod,
+        note: paymentNote || (paymentCollectionType === "deposit" ? "Deposit received during booking creation" : "Paid in full during booking creation"),
+        actorUserId: currentUser.id
+      });
+    }
+  } catch (error) {
+    if (bookingId) {
+      await deleteBookingRecord(bookingId);
+    }
+
+    throw error;
   }
 
   revalidatePath("/");

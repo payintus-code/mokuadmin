@@ -52,6 +52,35 @@ function getTransactionFilter(value: string | undefined): TransactionFilter {
   return "all";
 }
 
+function calculateStaffCommission(serviceIncomeTotal: number) {
+  const tiers = [
+    { label: "0 - 30,000 บาท", cap: 30000, rate: 0.03 },
+    { label: "30,001 - 60,000 บาท", cap: 60000, rate: 0.05 },
+    { label: "60,001 - 100,000 บาท", cap: 100000, rate: 0.08 },
+    { label: "ส่วนที่เกิน 100,000 บาท", cap: Number.POSITIVE_INFINITY, rate: 0.1 }
+  ] as const;
+
+  let previousCap = 0;
+  let totalCommission = 0;
+  const breakdown = tiers.map((tier) => {
+    const tierAmount = Math.max(0, Math.min(serviceIncomeTotal, tier.cap) - previousCap);
+    const commission = tierAmount * tier.rate;
+    totalCommission += commission;
+
+    if (Number.isFinite(tier.cap)) {
+      previousCap = tier.cap;
+    }
+
+    return {
+      ...tier,
+      tierAmount,
+      commission
+    };
+  });
+
+  return { totalCommission, breakdown };
+}
+
 function getTransactionFilterLabel(type: TransactionFilter) {
   if (type === "income") {
     return "รายรับ";
@@ -67,7 +96,7 @@ function getTransactionFilterLabel(type: TransactionFilter) {
 export default async function FinanceReportPage({
   searchParams
 }: {
-  searchParams?: Promise<{ mode?: string; date?: string; start?: string; end?: string; month?: string; type?: string }>;
+  searchParams?: Promise<{ mode?: string; date?: string; start?: string; end?: string; month?: string; type?: string; commission?: string }>;
 }) {
   const params = (await searchParams) ?? {};
   const today = formatDateInput();
@@ -75,6 +104,7 @@ export default async function FinanceReportPage({
   const date = params.date ?? today;
   const month = params.month ?? today.slice(0, 7);
   const type = getTransactionFilter(params.type);
+  const showCommission = params.commission === "1";
 
   let startDate = date;
   let endDate = date;
@@ -91,6 +121,9 @@ export default async function FinanceReportPage({
   }
 
   const exportHref = `/finance/report/export?mode=${encodeURIComponent(mode)}&date=${encodeURIComponent(date)}&month=${encodeURIComponent(month)}&start=${encodeURIComponent(startDate)}&end=${encodeURIComponent(endDate)}&type=${encodeURIComponent(type)}`;
+  const reportQuery = `mode=${encodeURIComponent(mode)}&date=${encodeURIComponent(date)}&month=${encodeURIComponent(month)}&start=${encodeURIComponent(startDate)}&end=${encodeURIComponent(endDate)}&type=${encodeURIComponent(type)}`;
+  const commissionHref = `/finance/report?${reportQuery}&commission=1`;
+  const closeCommissionHref = `/finance/report?${reportQuery}`;
 
   if (!hasSupabaseEnv()) {
     return (
@@ -112,6 +145,7 @@ export default async function FinanceReportPage({
   const summary = summarizeTransactions(filteredTransactions);
   const groups = groupTransactionsByDate(filteredTransactions);
   const showIncomeSections = type !== "expense";
+  const staffCommission = calculateStaffCommission(summary.service_income_total);
 
   return (
     <main className="stack">
@@ -176,6 +210,12 @@ export default async function FinanceReportPage({
         </button>
       </form>
 
+      <section className="card stack">
+        <Link className={`btn ${showCommission ? "btn-secondary" : "btn-primary"}`} href={showCommission ? closeCommissionHref : commissionHref}>
+          {showCommission ? "ซ่อนค่าคอมพนักงาน" : "คำนวณค่าคอมพนักงาน"}
+        </Link>
+      </section>
+
       <section className="grid-2">
         <div className="card">
           <div className="muted">รายรับรวม</div>
@@ -213,6 +253,32 @@ export default async function FinanceReportPage({
               </p>
             </div>
           </section>
+
+          {showCommission ? (
+            <section className="card stack">
+              <div>
+                <div className="muted">ค่าคอมพนักงาน</div>
+                <h2 style={{ margin: "6px 0 0", color: "var(--accent-strong)" }}>{formatBaht(staffCommission.totalCommission)}</h2>
+                <p className="muted" style={{ marginBottom: 0 }}>
+                  คิดจากรายรับบริการ {formatBaht(summary.service_income_total)} ตามอัตราแบบขั้นบันได
+                </p>
+              </div>
+
+              <div className="stack">
+                {staffCommission.breakdown.map((item) => (
+                  <div key={item.label} className="card panel-muted">
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+                      <strong>{item.label}</strong>
+                      <span>{Math.round(item.rate * 100)}%</span>
+                    </div>
+                    <div className="muted" style={{ marginTop: 6 }}>
+                      ยอดที่คิด: {formatBaht(item.tierAmount)} | ค่าคอม: {formatBaht(item.commission)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          ) : null}
 
           <section className="card stack">
             <div className="muted">สรุปตามช่องทางรับเงิน</div>

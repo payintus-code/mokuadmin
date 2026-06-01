@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useFormStatus } from "react-dom";
 import { checkGroomingAvailability, createBooking, getAvailableRooms } from "@/app/actions/bookings";
 import { validateHotelStayDates, validatePaymentDraft } from "@/lib/booking-draft";
@@ -104,6 +104,54 @@ function normalizeComparison(value: string) {
     .trim();
 }
 
+function normalizeSearchPhone(value: string) {
+  return value.replace(/[^\d+]/g, "");
+}
+
+function parseCustomerSearchDraft(value: string) {
+  const raw = value.trim();
+
+  if (!raw) {
+    return {
+      customerFullName: "",
+      customerPhone: "",
+      petName: ""
+    };
+  }
+
+  const slashParts = raw
+    .split("/")
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  if (slashParts.length >= 2) {
+    const phonePart = slashParts.find((part) => normalizeSearchPhone(part).length >= 8) ?? "";
+    const textParts = slashParts.filter((part) => part !== phonePart);
+
+    return {
+      customerFullName: textParts[0] ?? "",
+      petName: textParts[1] ?? "",
+      customerPhone: phonePart
+    };
+  }
+
+  const phoneOnly = normalizeSearchPhone(raw);
+
+  if (phoneOnly.length >= 8) {
+    return {
+      customerFullName: "",
+      customerPhone: raw,
+      petName: ""
+    };
+  }
+
+  return {
+    customerFullName: "",
+    customerPhone: "",
+    petName: ""
+  };
+}
+
 function getSpeciesLabel(value: string) {
   if (value === "dog") {
     return "สุนัข";
@@ -182,10 +230,76 @@ function formatDateTimeSummary(value: string) {
     return value;
   }
 
-  return new Intl.DateTimeFormat("th-TH", {
-    dateStyle: "medium",
-    timeStyle: "short"
-  }).format(parsed);
+  const day = String(parsed.getDate()).padStart(2, "0");
+  const month = String(parsed.getMonth() + 1).padStart(2, "0");
+  const year = parsed.getFullYear();
+  const hours = String(parsed.getHours()).padStart(2, "0");
+  const minutes = String(parsed.getMinutes()).padStart(2, "0");
+  return `${day}/${month}/${year} ${hours}:${minutes}`;
+}
+
+function formatDateSummary(value: string) {
+  if (!value) {
+    return "-";
+  }
+
+  const normalized = value.includes("T") ? value : `${value}T00:00`;
+  const parsed = new Date(normalized);
+
+  if (Number.isNaN(parsed.getTime())) {
+    return value;
+  }
+
+  const day = String(parsed.getDate()).padStart(2, "0");
+  const month = String(parsed.getMonth() + 1).padStart(2, "0");
+  const year = parsed.getFullYear();
+  return `${day}/${month}/${year}`;
+}
+
+function parseDisplayDateToIso(value: string) {
+  const trimmed = value.trim();
+
+  if (!trimmed) {
+    return "";
+  }
+
+  const match = trimmed.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+
+  if (!match) {
+    return null;
+  }
+
+  const [, dayText, monthText, yearText] = match;
+  const day = Number(dayText);
+  const month = Number(monthText);
+  const year = Number(yearText);
+  const parsed = new Date(year, month - 1, day);
+
+  if (
+    Number.isNaN(parsed.getTime()) ||
+    parsed.getFullYear() !== year ||
+    parsed.getMonth() !== month - 1 ||
+    parsed.getDate() !== day
+  ) {
+    return null;
+  }
+
+  return `${yearText}-${monthText}-${dayText}`;
+}
+
+function openNativeDatePicker(input: HTMLInputElement | null) {
+  if (!input) {
+    return;
+  }
+
+  const pickerInput = input as HTMLInputElement & { showPicker?: () => void };
+
+  if (typeof pickerInput.showPicker === "function") {
+    pickerInput.showPicker();
+    return;
+  }
+
+  input.click();
 }
 
 function FieldMessage({
@@ -208,29 +322,47 @@ function SubmitButton({ disabled }: { disabled: boolean }) {
   );
 }
 
+function ReviewButton({
+  disabled,
+  onClick
+}: {
+  disabled: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button className="btn btn-primary" type="button" onClick={onClick} disabled={disabled}>
+      ตรวจสอบก่อนบันทึก
+    </button>
+  );
+}
+
 export function BookingForm({ customers, pets, rooms, services }: BookingFormProps) {
   const router = useRouter();
   const defaults = useMemo(() => buildDefaultDateRange(), []);
+  const hasExistingCustomers = customers.length > 0;
 
   const groomingServices = useMemo(() => services.filter((service) => service.category !== "hotel"), [services]);
   const hotelServices = useMemo(() => services.filter((service) => service.category === "hotel"), [services]);
   const roomById = useMemo(() => new Map(rooms.map((room) => [room.id, room])), [rooms]);
 
   const [bookingType, setBookingType] = useState<"grooming" | "hotel">("grooming");
-  const [customerMode, setCustomerMode] = useState<"existing" | "new">("existing");
+  const [customerMode, setCustomerMode] = useState<"existing" | "new">(hasExistingCustomers ? "existing" : "new");
   const [customerSearch, setCustomerSearch] = useState("");
-  const [customerId, setCustomerId] = useState(customers[0]?.id ?? "");
+  const [customerId, setCustomerId] = useState("");
   const [primaryPetId, setPrimaryPetId] = useState("");
   const [secondaryPetId, setSecondaryPetId] = useState("");
   const [roomId, setRoomId] = useState("");
   const [serviceId, setServiceId] = useState("");
   const [startAt, setStartAt] = useState(defaults.startAt);
   const [endAt, setEndAt] = useState(defaults.endAt);
+  const [groomingDateInput, setGroomingDateInput] = useState(formatDateSummary(getDatePart(defaults.startAt)));
+  const [hotelCheckInDateInput, setHotelCheckInDateInput] = useState(formatDateSummary(getDatePart(defaults.startAt)));
+  const [hotelCheckOutDateInput, setHotelCheckOutDateInput] = useState(formatDateSummary(getDatePart(defaults.endAt)));
   const [manualTotalAmount, setManualTotalAmount] = useState("");
   const [note, setNote] = useState("");
   const [importedContextNote, setImportedContextNote] = useState("");
   const [paymentCollectionType, setPaymentCollectionType] = useState<PaymentCollectionType>("none");
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("transfer");
   const [receivedAmount, setReceivedAmount] = useState("");
   const [paymentNote, setPaymentNote] = useState("");
   const [customerFullName, setCustomerFullName] = useState("");
@@ -250,6 +382,7 @@ export function BookingForm({ customers, pets, rooms, services }: BookingFormPro
   const [formSuccess, setFormSuccess] = useState("");
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+  const [isReviewOpen, setIsReviewOpen] = useState(false);
   const [showPaymentNow, setShowPaymentNow] = useState(false);
   const [showSecondaryPet, setShowSecondaryPet] = useState(false);
   const [hotelRoomState, setHotelRoomState] = useState<GuardState<AvailableRoomOption[]>>({
@@ -263,6 +396,9 @@ export function BookingForm({ customers, pets, rooms, services }: BookingFormPro
     data: null
   });
   const [roomSelectionNotice, setRoomSelectionNotice] = useState("");
+  const groomingDatePickerRef = useRef<HTMLInputElement>(null);
+  const hotelCheckInDatePickerRef = useRef<HTMLInputElement>(null);
+  const hotelCheckOutDatePickerRef = useRef<HTMLInputElement>(null);
 
   const filteredCustomers = useMemo(() => {
     const query = normalizeComparison(customerSearch);
@@ -282,19 +418,62 @@ export function BookingForm({ customers, pets, rooms, services }: BookingFormPro
     });
   }, [customerSearch, customers, pets]);
 
+  useEffect(() => {
+    if (!hasExistingCustomers && customerMode !== "new") {
+      setCustomerMode("new");
+    }
+  }, [customerMode, hasExistingCustomers]);
+
+  useEffect(() => {
+    if (customerMode !== "existing") {
+      return;
+    }
+
+    if (!customerSearch.trim()) {
+      return;
+    }
+
+    if (filteredCustomers.length === 0) {
+      const importDraft = importPreview?.data;
+      const draft = parseCustomerSearchDraft(customerSearch);
+
+      if (!customerFullName.trim() && importDraft?.customerName) {
+        setCustomerFullName(importDraft.customerName);
+      }
+
+      if (!customerFullName.trim() && !importDraft?.customerName && draft.customerFullName) {
+        setCustomerFullName(draft.customerFullName);
+      }
+
+      if (!customerPhone.trim() && importDraft?.phone) {
+        setCustomerPhone(importDraft.phone);
+      }
+
+      if (!customerPhone.trim() && !importDraft?.phone && draft.customerPhone) {
+        setCustomerPhone(draft.customerPhone);
+      }
+
+      if (!newPetName.trim() && importDraft?.petName) {
+        setNewPetName(importDraft.petName);
+      }
+
+      if (!newPetName.trim() && !importDraft?.petName && draft.petName) {
+        setNewPetName(draft.petName);
+      }
+
+      setCustomerMode("new");
+    }
+  }, [customerFullName, customerMode, customerPhone, customerSearch, filteredCustomers.length, importPreview, newPetName]);
+
   const resolvedCustomerId =
-    customerMode === "existing" && filteredCustomers.some((customer) => customer.id === customerId)
-      ? customerId
-      : filteredCustomers[0]?.id ?? "";
+    customerMode === "existing" && filteredCustomers.some((customer) => customer.id === customerId) ? customerId : "";
 
   const availablePrimaryPets = useMemo(
     () => pets.filter((pet) => pet.customer_id === resolvedCustomerId),
     [pets, resolvedCustomerId]
   );
 
-  const resolvedPrimaryPetId = availablePrimaryPets.some((pet) => pet.id === primaryPetId)
-    ? primaryPetId
-    : availablePrimaryPets[0]?.id ?? "";
+  const resolvedPrimaryPetId = availablePrimaryPets.some((pet) => pet.id === primaryPetId) ? primaryPetId : "";
 
   const availableSecondaryPets = useMemo(
     () => availablePrimaryPets.filter((pet) => pet.id !== resolvedPrimaryPetId),
@@ -331,7 +510,7 @@ export function BookingForm({ customers, pets, rooms, services }: BookingFormPro
     return toDateTimeLocalValue(nextEnd);
   }, [endAt, isGrooming, selectedService?.duration_minutes, startAt]);
 
-  const computedTotalAmount = manualTotalAmount || String(selectedService?.price ?? 0);
+  const computedTotalAmount = manualTotalAmount;
   const totalAmountNumber = Number(computedTotalAmount || 0);
   const receivedAmountNumber = Number(receivedAmount || 0);
   const selectedPetCount = customerMode === "existing" && showSecondaryPet && resolvedSecondaryPetId ? 2 : 1;
@@ -489,9 +668,9 @@ export function BookingForm({ customers, pets, rooms, services }: BookingFormPro
   function resetFormState() {
     const nextDefaults = buildDefaultDateRange();
     setBookingType("grooming");
-    setCustomerMode("existing");
+    setCustomerMode(hasExistingCustomers ? "existing" : "new");
     setCustomerSearch("");
-    setCustomerId(customers[0]?.id ?? "");
+    setCustomerId("");
     setPrimaryPetId("");
     setSecondaryPetId("");
     setRoomId("");
@@ -502,7 +681,7 @@ export function BookingForm({ customers, pets, rooms, services }: BookingFormPro
     setNote("");
     setImportedContextNote("");
     setPaymentCollectionType("none");
-    setPaymentMethod("cash");
+    setPaymentMethod("transfer");
     setReceivedAmount("");
     setPaymentNote("");
     setCustomerFullName("");
@@ -521,6 +700,7 @@ export function BookingForm({ customers, pets, rooms, services }: BookingFormPro
     setFormError("");
     setIsImportOpen(false);
     setIsDetailsOpen(false);
+    setIsReviewOpen(false);
     setShowPaymentNow(false);
     setShowSecondaryPet(false);
     setHotelRoomState({
@@ -603,7 +783,7 @@ export function BookingForm({ customers, pets, rooms, services }: BookingFormPro
       const serviceMatch = findMatchingService(data.serviceText, services);
       warnings.push(...serviceMatch.warnings);
       setServiceId(serviceMatch.matchedService?.id ?? "");
-      setManualTotalAmount(serviceMatch.matchedService ? String(serviceMatch.matchedService.price) : "");
+      setManualTotalAmount("");
     } else {
       const checkInTime = getTimePart(startAt);
       const checkOutTime = getTimePart(effectiveEndAt);
@@ -643,6 +823,18 @@ export function BookingForm({ customers, pets, rooms, services }: BookingFormPro
   const hotelCheckInTime = getTimePart(startAt);
   const hotelCheckOutTime = getTimePart(endAt);
   const groomingTimeOptions = getSelectableTimeOptions(getTimePart(startAt));
+
+  useEffect(() => {
+    setGroomingDateInput(formatDateSummary(getDatePart(startAt)));
+  }, [startAt]);
+
+  useEffect(() => {
+    setHotelCheckInDateInput(formatDateSummary(hotelCheckInDate));
+  }, [hotelCheckInDate]);
+
+  useEffect(() => {
+    setHotelCheckOutDateInput(formatDateSummary(hotelCheckOutDate));
+  }, [hotelCheckOutDate]);
 
   const customerReady =
     customerMode === "existing"
@@ -725,57 +917,6 @@ export function BookingForm({ customers, pets, rooms, services }: BookingFormPro
 
     return { ok: false, blocking: true, message: "กำลังรอเช็กคิว grooming" };
   })();
-
-  const importReview = useMemo(() => {
-    if (!importPreview) {
-      return null;
-    }
-
-    const autoFilled = [
-      `ประเภทคิว: ${importPreview.data.serviceType === "grooming" ? "Grooming" : "Hotel"}`,
-      `ลูกค้า: ${importPreview.data.customerName}`,
-      `สัตว์เลี้ยง: ${importPreview.data.petName}`,
-      `เบอร์โทร: ${importPreview.data.phone}`
-    ];
-    const pending = [] as string[];
-
-    if (importPreview.data.serviceType === "grooming") {
-      autoFilled.push(`วันเวลา: ${importPreview.data.appointmentDateTime}`);
-
-      if (serviceId && selectedService) {
-        autoFilled.push(`บริการหลัก: ${selectedService.name}`);
-      } else {
-        pending.push("เลือกบริการหลักให้ตรงกับข้อความนำเข้า");
-      }
-    } else {
-      autoFilled.push(`เข้าพัก: ${importPreview.data.checkInDate} ถึง ${importPreview.data.checkOutDate}`);
-
-      if (manualTotalAmount) {
-        autoFilled.push(`ยอดรวม: ${formatCurrency(Number(manualTotalAmount))} บาท`);
-      }
-
-      if (roomId && selectedRoom) {
-        autoFilled.push(`ห้องพัก: ${selectedRoom.code} - ${selectedRoom.name}`);
-      } else {
-        pending.push("เลือกห้องพักก่อนบันทึก");
-      }
-    }
-
-    if (importPreview.data.depositAmount) {
-      autoFilled.push(`พบมัดจำจากข้อความ: ${formatCurrency(importPreview.data.depositAmount)} บาท`);
-    }
-
-    if (customerMode === "new") {
-      pending.push("ตรวจสอบว่าต้องสร้างลูกค้า/สัตว์เลี้ยงใหม่จริงก่อนบันทึก");
-    } else if (resolvedCustomer && resolvedPrimaryPet) {
-      autoFilled.push(`จับคู่ฐานข้อมูลเดิม: ${resolvedCustomer.full_name} / ${resolvedPrimaryPet.name}`);
-    }
-
-    return {
-      autoFilled,
-      pending
-    };
-  }, [customerMode, importPreview, manualTotalAmount, resolvedCustomer, resolvedPrimaryPet, roomId, selectedRoom, selectedService, serviceId]);
 
   const bookingSummaryItems = [
     {
@@ -898,43 +1039,8 @@ export function BookingForm({ customers, pets, rooms, services }: BookingFormPro
 
             {importPreview ? (
               <div className="soft-note">
-                <strong>ผลลัพธ์ที่นำเข้า</strong>
-                <div className="booking-preview-grid">
-                  <span>ประเภทคิว: {importPreview.data.serviceType === "grooming" ? "Grooming" : "Hotel"}</span>
-                  <span>ลูกค้า: {importPreview.data.customerName}</span>
-                  <span>สัตว์เลี้ยง: {importPreview.data.petName}</span>
-                  <span>เบอร์โทร: {importPreview.data.phone}</span>
-                </div>
-
-                {importReview ? (
-                  <div className="booking-import-review">
-                    <div className="card panel-muted stack">
-                      <strong>เติมให้แล้ว</strong>
-                      <div className="booking-inline-list">
-                        {importReview.autoFilled.map((item) => (
-                          <span key={item} className="booking-inline-chip booking-inline-chip-success">
-                            {item}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="card panel-muted stack">
-                      <strong>ยังต้องตรวจหรือเลือกเอง</strong>
-                      {importReview.pending.length ? (
-                        <div className="booking-inline-list">
-                          {importReview.pending.map((item) => (
-                            <span key={item} className="booking-inline-chip booking-inline-chip-warning">
-                              {item}
-                            </span>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="label-hint">ข้อมูลหลักพร้อมใช้งานแล้ว</p>
-                      )}
-                    </div>
-                  </div>
-                ) : null}
+                <strong>นำเข้าข้อมูลแล้ว</strong>
+                <p className="label-hint">ระบบเติมข้อมูลให้ในฟอร์มแล้ว และจะให้ตรวจสอบอีกครั้งตอนกดบันทึกการจอง</p>
 
                 {importPreview.warnings.length ? (
                   <FieldMessage tone="warning">
@@ -995,7 +1101,7 @@ export function BookingForm({ customers, pets, rooms, services }: BookingFormPro
                   onChange={(event) => setCustomerId(event.target.value)}
                   required
                 >
-                  {filteredCustomers.length ? null : <option value="">ไม่พบลูกค้าที่ตรงกับการค้นหา</option>}
+                  <option value="">{filteredCustomers.length ? "เลือกลูกค้า" : "ไม่พบลูกค้าที่ตรงกับการค้นหา"}</option>
                   {filteredCustomers.map((customer) => (
                     <option key={customer.id} value={customer.id}>
                       {customer.full_name} {customer.phone ? `(${customer.phone})` : ""}
@@ -1013,7 +1119,7 @@ export function BookingForm({ customers, pets, rooms, services }: BookingFormPro
                   onChange={(event) => setPrimaryPetId(event.target.value)}
                   required
                 >
-                  {availablePrimaryPets.length ? null : <option value="">เลือกลูกค้าก่อน</option>}
+                  <option value="">{resolvedCustomerId ? "เลือกสัตว์เลี้ยง" : "เลือกลูกค้าก่อน"}</option>
                   {availablePrimaryPets.map((pet) => (
                     <option key={pet.id} value={pet.id}>
                       {pet.name} ({getSpeciesLabel(pet.species)})
@@ -1141,13 +1247,42 @@ export function BookingForm({ customers, pets, rooms, services }: BookingFormPro
             <div className="grid-2">
               <label className="label">
                 วันที่
-                <input
-                  className="input"
-                  type="date"
-                  value={getDatePart(startAt)}
-                  onChange={(event) => setStartAt(combineDateAndTime(event.target.value, getTimePart(startAt)))}
-                  required
-                />
+                <div className="date-input-row">
+                  <input
+                    className="input"
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="dd/mm/yyyy"
+                    value={groomingDateInput}
+                    onChange={(event) => {
+                      const nextValue = event.target.value;
+                      setGroomingDateInput(nextValue);
+                      const parsed = parseDisplayDateToIso(nextValue);
+                      if (parsed) {
+                        setStartAt(combineDateAndTime(parsed, getTimePart(startAt)));
+                      }
+                    }}
+                    onBlur={() => setGroomingDateInput(formatDateSummary(getDatePart(startAt)))}
+                    required
+                  />
+                  <button
+                    className="date-picker-button"
+                    type="button"
+                    aria-label="เลือกวันที่"
+                    onClick={() => openNativeDatePicker(groomingDatePickerRef.current)}
+                  >
+                    <span aria-hidden="true">📅</span>
+                  </button>
+                  <input
+                    ref={groomingDatePickerRef}
+                    className="date-picker-native"
+                    type="date"
+                    tabIndex={-1}
+                    aria-hidden="true"
+                    value={getDatePart(startAt)}
+                    onChange={(event) => setStartAt(combineDateAndTime(event.target.value, getTimePart(startAt)))}
+                  />
+                </div>
               </label>
 
               <label className="label">
@@ -1179,7 +1314,7 @@ export function BookingForm({ customers, pets, rooms, services }: BookingFormPro
                 <option value="">เลือกบริการ</option>
                 {groomingServices.map((service) => (
                   <option key={service.id} value={service.id}>
-                    {service.name} ({formatCurrency(service.price)} บาท)
+                    {service.name}
                   </option>
                 ))}
               </select>
@@ -1194,24 +1329,82 @@ export function BookingForm({ customers, pets, rooms, services }: BookingFormPro
             <div className="grid-2">
               <label className="label">
                 วันที่เช็กอิน
-                <input
-                  className="input"
-                  type="date"
-                  value={hotelCheckInDate}
-                  onChange={(event) => setStartAt(combineDateAndTime(event.target.value, hotelCheckInTime))}
-                  required
-                />
+                <div className="date-input-row">
+                  <input
+                    className="input"
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="dd/mm/yyyy"
+                    value={hotelCheckInDateInput}
+                    onChange={(event) => {
+                      const nextValue = event.target.value;
+                      setHotelCheckInDateInput(nextValue);
+                      const parsed = parseDisplayDateToIso(nextValue);
+                      if (parsed) {
+                        setStartAt(combineDateAndTime(parsed, hotelCheckInTime));
+                      }
+                    }}
+                    onBlur={() => setHotelCheckInDateInput(formatDateSummary(hotelCheckInDate))}
+                    required
+                  />
+                  <button
+                    className="date-picker-button"
+                    type="button"
+                    aria-label="เลือกวันที่เช็กอิน"
+                    onClick={() => openNativeDatePicker(hotelCheckInDatePickerRef.current)}
+                  >
+                    <span aria-hidden="true">📅</span>
+                  </button>
+                  <input
+                    ref={hotelCheckInDatePickerRef}
+                    className="date-picker-native"
+                    type="date"
+                    tabIndex={-1}
+                    aria-hidden="true"
+                    value={hotelCheckInDate}
+                    onChange={(event) => setStartAt(combineDateAndTime(event.target.value, hotelCheckInTime))}
+                  />
+                </div>
               </label>
 
               <label className="label">
                 วันที่เช็กเอาต์
-                <input
-                  className="input"
-                  type="date"
-                  value={hotelCheckOutDate}
-                  onChange={(event) => setEndAt(combineDateAndTime(event.target.value, hotelCheckOutTime))}
-                  required
-                />
+                <div className="date-input-row">
+                  <input
+                    className="input"
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="dd/mm/yyyy"
+                    value={hotelCheckOutDateInput}
+                    onChange={(event) => {
+                      const nextValue = event.target.value;
+                      setHotelCheckOutDateInput(nextValue);
+                      const parsed = parseDisplayDateToIso(nextValue);
+                      if (parsed) {
+                        setEndAt(combineDateAndTime(parsed, hotelCheckOutTime));
+                      }
+                    }}
+                    onBlur={() => setHotelCheckOutDateInput(formatDateSummary(hotelCheckOutDate))}
+                    required
+                  />
+                  <button
+                    className="date-picker-button"
+                    type="button"
+                    aria-label="เลือกวันที่เช็กเอาต์"
+                    onClick={() => openNativeDatePicker(hotelCheckOutDatePickerRef.current)}
+                  >
+                    <span aria-hidden="true">📅</span>
+                  </button>
+                  <input
+                    ref={hotelCheckOutDatePickerRef}
+                    className="date-picker-native"
+                    type="date"
+                    tabIndex={-1}
+                    aria-hidden="true"
+                    value={hotelCheckOutDate}
+                    onChange={(event) => setEndAt(combineDateAndTime(event.target.value, hotelCheckOutTime))}
+                  />
+                </div>
               </label>
             </div>
 
@@ -1284,10 +1477,10 @@ export function BookingForm({ customers, pets, rooms, services }: BookingFormPro
               inputMode="numeric"
               value={manualTotalAmount}
               onChange={(event) => setManualTotalAmount(event.target.value.replace(/[^\d]/g, ""))}
-              placeholder={selectedService ? String(selectedService.price) : "0"}
+              placeholder="0"
             />
             <p className="label-hint">
-              {selectedService && !manualTotalAmount ? `ถ้ายังไม่กรอก ระบบจะใช้ราคาบริการ ${formatCurrency(selectedService.price)} บาท` : "ปล่อยว่างได้ถ้ายังไม่สรุปยอด แต่ถ้าจะรับเงินควรระบุยอดรวมก่อน"}
+              ปล่อยว่างได้ถ้ายังไม่สรุปยอด แต่ถ้าจะรับเงินควรระบุยอดรวมก่อน
             </p>
           </label>
 
@@ -1394,7 +1587,7 @@ export function BookingForm({ customers, pets, rooms, services }: BookingFormPro
             ) : (
               <>
                 <input type="hidden" name="paymentCollectionType" value="none" />
-                <input type="hidden" name="paymentMethod" value="cash" />
+                <input type="hidden" name="paymentMethod" value="transfer" />
                 <input type="hidden" name="receivedAmount" value="0" />
                 <input type="hidden" name="paymentNote" value="" />
               </>
@@ -1413,7 +1606,7 @@ export function BookingForm({ customers, pets, rooms, services }: BookingFormPro
                 <option value="">ไม่เลือกก็ได้</option>
                 {hotelServices.map((service) => (
                   <option key={service.id} value={service.id}>
-                    {service.name} ({formatCurrency(service.price)} บาท)
+                    {service.name}
                   </option>
                 ))}
               </select>
@@ -1538,47 +1731,69 @@ export function BookingForm({ customers, pets, rooms, services }: BookingFormPro
         </div>
       </details>
 
-      <section className="form-section booking-review-section">
-        <div>
-          <p className="section-kicker">Review</p>
-          <h2 className="form-section-title">สรุปก่อนบันทึก</h2>
-          <p className="form-section-copy">ดู snapshot ของข้อมูลหลักและเช็กรายการที่ต้องผ่านก่อนสร้างคิว</p>
-        </div>
-
-        <div className="booking-review-grid">
-          {bookingSummaryItems.map((item) => (
-            <div key={item.label} className="card panel-muted booking-summary-card">
-              <div className="muted">{item.label}</div>
-              <strong>{item.value}</strong>
-            </div>
-          ))}
-        </div>
-
-        <div className="booking-checklist">
-          {checklist.map((item) => (
-            <div key={item.label} className={`booking-checklist-item ${item.ok ? "is-ok" : "is-blocking"}`}>
-              <strong>{item.label}</strong>
-              <span>{item.message}</span>
-            </div>
-          ))}
-        </div>
-      </section>
-
       <div className="booking-form-action booking-action-bar">
         <div className="booking-action-copy">
           <strong>พร้อมสร้างคิว</strong>
           <p className="booking-action-hint">
             {canSubmit
-              ? "ผ่านการตรวจเบื้องต้นแล้ว สามารถบันทึกได้เลย"
-              : "ยังมีรายการที่ต้องแก้ก่อนบันทึก ดู checklist ด้านบนได้เลย"}
+              ? "กดเพื่อตรวจสอบข้อมูลก่อนบันทึกจริงอีกครั้ง"
+              : "กดเพื่อตรวจสอบ checklist และจุดที่ยังต้องแก้ก่อนบันทึก"}
           </p>
           {formError ? <FieldMessage tone="danger">{formError}</FieldMessage> : null}
           {formSuccess ? <FieldMessage tone="success">{formSuccess}</FieldMessage> : null}
         </div>
         <div className="booking-action-buttons">
-          <SubmitButton disabled={!canSubmit} />
+          <ReviewButton disabled={false} onClick={() => setIsReviewOpen(true)} />
         </div>
       </div>
+
+      {isReviewOpen ? (
+        <div className="booking-review-modal-overlay" role="presentation" onClick={() => setIsReviewOpen(false)}>
+          <div
+            className="booking-review-modal card"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="booking-review-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="booking-review-modal-head">
+              <div>
+                <p className="section-kicker">Review</p>
+                <h2 id="booking-review-title" className="form-section-title">สรุปก่อนบันทึก</h2>
+                <p className="form-section-copy">ดู snapshot ของข้อมูลหลักและเช็กรายการที่ต้องผ่านก่อนสร้างคิว</p>
+              </div>
+              <button className="btn btn-ghost booking-review-close" type="button" onClick={() => setIsReviewOpen(false)}>
+                ปิด
+              </button>
+            </div>
+
+            <div className="booking-review-grid">
+              {bookingSummaryItems.map((item) => (
+                <div key={item.label} className="card panel-muted booking-summary-card">
+                  <div className="muted">{item.label}</div>
+                  <strong>{item.value}</strong>
+                </div>
+              ))}
+            </div>
+
+            <div className="booking-checklist">
+              {checklist.map((item) => (
+                <div key={item.label} className={`booking-checklist-item ${item.ok ? "is-ok" : "is-blocking"}`}>
+                  <strong>{item.label}</strong>
+                  <span>{item.message}</span>
+                </div>
+              ))}
+            </div>
+
+            <div className="booking-review-modal-actions">
+              <button className="btn btn-secondary" type="button" onClick={() => setIsReviewOpen(false)}>
+                กลับไปแก้ไข
+              </button>
+              <SubmitButton disabled={!canSubmit} />
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <input type="hidden" name="customerMode" value={customerMode} />
       <input type="hidden" name="importedContextNote" value={importedContextNote} />

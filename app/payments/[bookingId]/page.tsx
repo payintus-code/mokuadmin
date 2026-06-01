@@ -27,7 +27,7 @@ export default async function PaymentPage({
   await requireAppUser();
 
   const { bookingId } = await params;
-  const paymentInfo = await prepareBookingPayment(bookingId);
+  const paymentInfo = await prepareBookingPayment(bookingId, { useAdminClient: true });
 
   return (
     <main className="stack">
@@ -39,7 +39,7 @@ export default async function PaymentPage({
             <strong>{paymentInfo.bookingNo}</strong>
             <div className="muted">{paymentInfo.bookingType === "hotel" ? "โรงแรม" : "อาบน้ำ / ตัดขน"}</div>
           </div>
-          <PaymentStatusBadge status={paymentInfo.payment?.status ?? "pending"} />
+          <PaymentStatusBadge status={paymentInfo.paymentStatus} />
         </div>
 
         <div className="grid-2">
@@ -75,7 +75,7 @@ export default async function PaymentPage({
           </div>
         </div>
 
-        {paymentInfo.payment?.status === "paid" ? (
+        {paymentInfo.paymentStatus === "paid" ? (
           <Link className="btn btn-secondary" href={`/receipts/${bookingId}`}>
             เปิดใบเสร็จ
           </Link>

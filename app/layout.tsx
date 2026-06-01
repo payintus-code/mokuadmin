@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { getCurrentAppUser } from "@/lib/auth";
 import { BottomNav } from "@/components/ui/bottom-nav";
@@ -6,6 +6,13 @@ import { BottomNav } from "@/components/ui/bottom-nav";
 export const metadata: Metadata = {
   title: "Moku Pet Grooming",
   description: "Pet grooming and hotel admin dashboard"
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#fff9f2"
 };
 
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

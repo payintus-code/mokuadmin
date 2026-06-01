@@ -82,7 +82,7 @@ export function BookingPaymentForm({
           <label className="label">
             ยอดรับเพิ่ม
             <input className="input" name="amount" type="number" min="0.01" max={remainingAmount} step="0.01" defaultValue={remainingAmount} required />
-            <p className="label-hint">à¸à¸£à¸­à¸à¹€à¸‰à¸žà¸²à¸°à¸¢à¸­à¸”à¸—à¸µà¹ˆà¸£à¸±à¸šà¹€à¸žà¸´à¹ˆà¸¡à¸„à¸£à¸±à¹‰à¸‡à¸™à¸µà¹‰ à¹„à¸¡à¹ˆà¹ƒà¸Šà¹ˆà¸¢à¸­à¸”à¸ªà¸°à¸ªà¸¡à¸—à¸±à¹‰à¸‡à¸«à¸¡à¸”</p>
+            <p className="label-hint">กรอกเฉพาะยอดที่รับเพิ่มครั้งนี้ ไม่ใช่ยอดสะสมทั้งหมด</p>
           </label>
         ) : null}
 
@@ -137,51 +137,58 @@ export function BookingPaymentForm({
       </form>
 
       {payment ? (
-        <form action={updateRecordedPayment} className="card stack">
-          <input type="hidden" name="bookingId" value={bookingId} />
+        <details className="card stack booking-collapsible">
+          <summary className="booking-collapsible-summary">
+            <div>
+              <h2 className="section-title">แก้ยอดที่บันทึกแล้ว</h2>
+              <p className="form-section-copy">ใช้เฉพาะกรณีบันทึกยอดผิด</p>
+            </div>
+            <span className="status-badge status-confirmed">เปิดเมื่อต้องแก้</span>
+          </summary>
 
-          <h2 className="section-title">แก้ยอดที่บันทึกแล้ว</h2>
-          <div className="muted">ใช้กรณีบันทึกยอดผิด ระบบจะอัปเดตรายการรับเงินและรายงานให้ตามยอดใหม่</div>
+          <form action={updateRecordedPayment} className="stack">
+            <input type="hidden" name="bookingId" value={bookingId} />
 
-          <label className="label">
-            ยอดที่บันทึกไว้
-            <input
-              className="input"
-              name="amount"
-              type="number"
-              min="0"
-              step="0.01"
-              max={totalAmount > 0 ? totalAmount : undefined}
-              defaultValue={payment.amount}
-              required
-            />
-          </label>
+            <label className="label">
+              ยอดที่บันทึกไว้
+              <input
+                className="input"
+                name="amount"
+                type="number"
+                min="0"
+                step="0.01"
+                max={totalAmount > 0 ? totalAmount : undefined}
+                defaultValue={payment.amount}
+                required
+              />
+            </label>
 
-          <label className="label">
-            วิธีชำระ
-            <select className="select" name="method" value={editMethod} onChange={(event) => setEditMethod(event.target.value as PaymentMethod)}>
-              {paymentMethodOptions.map((option) => (
-                <option key={option.value} value={option.value} disabled={option.value === "promptpay_qr" && !promptpayAvailable}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
+            <label className="label">
+              วิธีชำระ
+              <select className="select" name="method" value={editMethod} onChange={(event) => setEditMethod(event.target.value as PaymentMethod)}>
+                {paymentMethodOptions.map((option) => (
+                  <option key={option.value} value={option.value} disabled={option.value === "promptpay_qr" && !promptpayAvailable}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
 
-          <label className="label">
-            เลขอ้างอิง
-            <input className="input" name="referenceNo" defaultValue={payment.reference_no ?? ""} placeholder="ไม่กรอกก็ได้" />
-          </label>
+            <label className="label">
+              เลขอ้างอิง
+              <input className="input" name="referenceNo" defaultValue={payment.reference_no ?? ""} placeholder="ไม่กรอกก็ได้" />
+            </label>
 
-          <label className="label">
-            หมายเหตุการชำระ
-            <textarea className="textarea" name="note" defaultValue={payment.note ?? ""} placeholder="เช่น แก้ยอดจากที่กรอกผิด" />
-          </label>
+            <label className="label">
+              หมายเหตุการชำระ
+              <textarea className="textarea" name="note" defaultValue={payment.note ?? ""} placeholder="เช่น แก้ยอดจากที่กรอกผิด" />
+            </label>
 
-          <div className="muted">ถ้าใส่ 0 ระบบจะลบยอดรับเงินรายการนี้ออก และคิวจะกลับไปรอชำระตามเดิม</div>
+            <div className="state-note state-note-warning">ถ้าใส่ 0 ระบบจะลบยอดรับเงินรายการนี้ออก และคิวจะกลับไปรอชำระตามเดิม</div>
 
-          <SubmitButton pendingLabel="กำลังอัปเดตยอด..." label="บันทึกยอดใหม่" />
-        </form>
+            <SubmitButton pendingLabel="กำลังอัปเดตยอด..." label="บันทึกยอดใหม่" />
+          </form>
+        </details>
       ) : null}
     </div>
   );

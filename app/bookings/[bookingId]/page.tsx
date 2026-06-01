@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { cancelBooking, completeBooking, deleteBooking, quickUpdateBookingStatus, updateBookingTotal } from "@/app/actions/bookings";
 import { DeleteButton } from "@/components/forms/delete-button";
+import { ConfirmActionButton } from "@/components/ui/confirm-action-button";
 import { PageHeader } from "@/components/ui/page-header";
 import { PaymentStatusBadge } from "@/components/ui/payment-status-badge";
 import { SetupNotice } from "@/components/ui/setup-notice";
@@ -170,14 +171,40 @@ export default async function BookingDetailPage({
         ) : null}
 
         {booking.status !== "cancelled" && booking.status !== "done" ? (
-          <form action={cancelBooking.bind(null, booking.booking_id)}>
-            <button className="btn btn-danger" type="submit">
-              ยกเลิกคิว
-            </button>
-          </form>
+          <section className="card danger-zone">
+            <div>
+              <h3 className="form-section-title">Danger zone</h3>
+              <p className="form-section-copy">การยกเลิกหรือลบคิวต้องยืนยันก่อนทุกครั้ง</p>
+            </div>
+            <ConfirmActionButton
+              action={cancelBooking.bind(null, booking.booking_id)}
+              label="ยกเลิกคิว"
+              description={`ยืนยันยกเลิกคิว ${booking.booking_no} คิวนี้จะถูกเปลี่ยนสถานะเป็นยกเลิก`}
+              confirmLabel="ยืนยันยกเลิกคิว"
+            />
+            {currentUser.role === "admin" ? (
+              <DeleteButton
+                action={deleteBooking.bind(null, booking.booking_id)}
+                label="ลบคิวนี้"
+                description={`ยืนยันลบคิว ${booking.booking_no} และข้อมูลที่เกี่ยวข้อง`}
+                confirmLabel="ยืนยันลบคิว"
+              />
+            ) : null}
+          </section>
+        ) : currentUser.role === "admin" ? (
+          <section className="card danger-zone">
+            <div>
+              <h3 className="form-section-title">Danger zone</h3>
+              <p className="form-section-copy">คิวที่ปิดแล้วควรลบเฉพาะกรณีข้อมูลผิดจริง</p>
+            </div>
+            <DeleteButton
+              action={deleteBooking.bind(null, booking.booking_id)}
+              label="ลบคิวนี้"
+              description={`ยืนยันลบคิว ${booking.booking_no} และข้อมูลที่เกี่ยวข้อง`}
+              confirmLabel="ยืนยันลบคิว"
+            />
+          </section>
         ) : null}
-
-        {currentUser.role === "admin" ? <DeleteButton action={deleteBooking.bind(null, booking.booking_id)} label="ลบคิวนี้" /> : null}
       </section>
     </main>
   );

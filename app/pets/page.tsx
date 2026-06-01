@@ -6,7 +6,11 @@ import { hasSupabaseEnv } from "@/lib/env";
 
 export const dynamic = "force-dynamic";
 
-export default async function PetsPage() {
+export default async function PetsPage({
+  searchParams
+}: {
+  searchParams?: Promise<{ q?: string }>;
+}) {
   if (!hasSupabaseEnv()) {
     return (
       <main className="stack">
@@ -18,5 +22,7 @@ export default async function PetsPage() {
 
   await requireAppUser();
 
-  return <PetsScreen />;
+  const params = (await searchParams) ?? {};
+
+  return <PetsScreen query={params.q?.trim() ?? ""} />;
 }

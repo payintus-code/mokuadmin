@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { useFormStatus } from "react-dom";
 import { createPet } from "@/app/actions/pets";
+import { StickyFormActions } from "@/components/ui/sticky-form-actions";
 import {
   CUSTOMER_PETS_DRAFT_STORAGE_KEY,
   type CustomerDraftPet
@@ -176,13 +177,16 @@ export function PetForm({ customers, draftMode = false, returnTo = "/customers/n
         {errorMessage ? <div className="state-note state-note-danger">{errorMessage}</div> : null}
 
         <div className="btn-grid">
-          <button className="btn btn-primary" type="submit" disabled={isSavingDraft}>
-            {isSavingDraft ? "กำลังบันทึก..." : "เพิ่มสัตว์เลี้ยง"}
-          </button>
           <Link className="btn btn-secondary" href={returnTo}>
             กลับไปฟอร์มลูกค้า
           </Link>
         </div>
+
+        <StickyFormActions title="พร้อมแนบสัตว์เลี้ยง" hint="รายการนี้จะกลับไปอยู่ในฟอร์มลูกค้าก่อนบันทึกจริง">
+          <button className="btn btn-primary" type="submit" disabled={isSavingDraft}>
+            {isSavingDraft ? "กำลังบันทึก..." : "เพิ่มสัตว์เลี้ยง"}
+          </button>
+        </StickyFormActions>
       </form>
     );
   }
@@ -235,7 +239,9 @@ export function PetForm({ customers, draftMode = false, returnTo = "/customers/n
         <textarea className="textarea" name="allergyNote" placeholder="เช่น แพ้น้ำหอม หรือไม่กรอกก็ได้" />
       </label>
 
-      <SubmitButton />
+      <StickyFormActions title="พร้อมบันทึกสัตว์เลี้ยง" hint="ตรวจเจ้าของและชื่อสัตว์เลี้ยงก่อนบันทึก">
+        <SubmitButton />
+      </StickyFormActions>
     </form>
   );
 }

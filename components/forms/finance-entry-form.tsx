@@ -4,6 +4,7 @@ import { Wallet } from "lucide-react";
 import { useState } from "react";
 import { useFormStatus } from "react-dom";
 import { createCashTransaction } from "@/app/actions/finance";
+import { StickyFormActions } from "@/components/ui/sticky-form-actions";
 import type { Customer } from "@/types/database";
 
 function SubmitButton() {
@@ -54,99 +55,109 @@ export function FinanceEntryForm({
 
   return (
     <form action={createCashTransaction} className="panel stack">
-      <div className="section-kicker">
-        <Wallet size={14} strokeWidth={2.2} />
-        <span>Cash flow entry</span>
-      </div>
-      <div className="stack" style={{ gap: 8 }}>
-        <h2 className="section-title">{title}</h2>
-        <p className="section-copy" style={{ margin: 0 }}>
-          ฟอร์มเดิมถูกจัด spacing และลำดับใหม่ให้กรอกง่ายขึ้น โดยยังใช้ action และ field เดิมทั้งหมด
-        </p>
-      </div>
+      <details className="finance-entry-collapsible stack" open={initialType === "expense"}>
+        <summary className="finance-entry-summary">
+          <div>
+            <div className="section-kicker">
+              <Wallet size={14} strokeWidth={2.2} />
+              <span>Cash flow entry</span>
+            </div>
+            <h2 className="section-title" style={{ marginTop: 8 }}>{title}</h2>
+          </div>
+          <span className="status-badge status-confirmed">เปิด/ปิดฟอร์ม</span>
+        </summary>
 
-      <div className="grid-2">
-        <label className="label">
-          ประเภทรายการ
-          <select
-            className="select"
-            name="transactionType"
-            value={transactionType}
-            onChange={(event) => handleTransactionTypeChange(event.target.value as "income" | "expense")}
-            required
-          >
-            <option value="income">รายรับ</option>
-            <option value="expense">รายจ่าย</option>
-          </select>
-        </label>
+        <div className="stack" style={{ gap: 8 }}>
+          <p className="section-copy" style={{ margin: 0 }}>
+            กรอกเฉพาะข้อมูลที่ต้องใช้บันทึกรายการ ส่วนปุ่มบันทึกจะอยู่ด้านล่างเสมอบนมือถือ
+          </p>
+        </div>
 
-        <label className="label">
-          หมวดหมู่
-          <select className="select" name="category" value={category} onChange={(event) => setCategory(event.target.value)} required>
-            {categoryOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
+        <div className="grid-2">
+          <label className="label">
+            ประเภทรายการ
+            <select
+              className="select"
+              name="transactionType"
+              value={transactionType}
+              onChange={(event) => handleTransactionTypeChange(event.target.value as "income" | "expense")}
+              required
+            >
+              <option value="income">รายรับ</option>
+              <option value="expense">รายจ่าย</option>
+            </select>
+          </label>
 
-      <label className="label">
-        ชื่อรายการ
-        <input className="input" name="title" placeholder="เช่น ค่าบริการอาบน้ำ / ซื้อแชมพู" required />
-      </label>
-
-      <div className="grid-2">
-        <label className="label">
-          จำนวนเงิน
-          <input className="input" name="amount" type="number" min="0.01" step="0.01" required />
-        </label>
+          <label className="label">
+            หมวดหมู่
+            <select className="select" name="category" value={category} onChange={(event) => setCategory(event.target.value)} required>
+              {categoryOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
 
         <label className="label">
-          วันที่
-          <input className="input" name="transactionDate" type="date" defaultValue={today} required />
+          ชื่อรายการ
+          <input className="input" name="title" placeholder="เช่น ค่าบริการอาบน้ำ / ซื้อแชมพู" required />
         </label>
-      </div>
 
-      <div className="grid-2">
+        <div className="grid-2">
+          <label className="label">
+            จำนวนเงิน
+            <input className="input" name="amount" type="number" min="0.01" step="0.01" required />
+          </label>
+
+          <label className="label">
+            วันที่
+            <input className="input" name="transactionDate" type="date" defaultValue={today} required />
+          </label>
+        </div>
+
+        <div className="grid-2">
+          <label className="label">
+            วิธีรับ/จ่าย
+            <select className="select" name="paymentMethod" defaultValue="cash">
+              <option value="cash">เงินสด</option>
+              <option value="promptpay_qr">PromptPay QR</option>
+              <option value="transfer">โอน</option>
+              <option value="card">บัตร</option>
+              <option value="other">อื่น ๆ</option>
+            </select>
+          </label>
+
+          <label className="label">
+            ลูกค้า
+            <select className="select" name="customerId">
+              <option value="">ไม่ระบุ</option>
+              {customers.map((customer) => (
+                <option key={customer.id} value={customer.id}>
+                  {customer.full_name}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+
+        {!hideBookingField ? (
+          <label className="label">
+            เลข booking
+            <input className="input" name="bookingId" placeholder="ไม่กรอกก็ได้" />
+          </label>
+        ) : null}
+
         <label className="label">
-          วิธีรับ/จ่าย
-          <select className="select" name="paymentMethod" defaultValue="cash">
-            <option value="cash">เงินสด</option>
-            <option value="promptpay_qr">PromptPay QR</option>
-            <option value="transfer">โอน</option>
-            <option value="card">บัตร</option>
-            <option value="other">อื่น ๆ</option>
-          </select>
+          หมายเหตุ
+          <textarea className="textarea" name="note" placeholder="รายละเอียดเพิ่มเติม" />
         </label>
+      </details>
 
-        <label className="label">
-          ลูกค้า
-          <select className="select" name="customerId">
-            <option value="">ไม่ระบุ</option>
-            {customers.map((customer) => (
-              <option key={customer.id} value={customer.id}>
-                {customer.full_name}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
-
-      {!hideBookingField ? (
-        <label className="label">
-          เลข booking
-          <input className="input" name="bookingId" placeholder="ไม่กรอกก็ได้" />
-        </label>
-      ) : null}
-
-      <label className="label">
-        หมายเหตุ
-        <textarea className="textarea" name="note" placeholder="รายละเอียดเพิ่มเติม" />
-      </label>
-
-      <SubmitButton />
+      <StickyFormActions title="พร้อมบันทึกรายการ" hint="ตรวจวันที่และจำนวนเงินก่อนกดบันทึก">
+        <SubmitButton />
+      </StickyFormActions>
     </form>
   );
 }

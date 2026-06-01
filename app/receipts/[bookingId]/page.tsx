@@ -40,7 +40,7 @@ export default async function ReceiptPage({
     <main className="stack">
       <PageHeader title="ใบเสร็จ" subtitle="พิมพ์หรือบันทึกเป็น PDF ได้จากเบราว์เซอร์" actionLabel="กลับหน้ารับชำระเงิน" actionHref={`/payments/${bookingId}`} />
 
-      <section className="card stack" style={{ gap: 16 }}>
+      <section className="card stack receipt-card" style={{ gap: 16 }}>
         <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-start" }}>
           <div>
             <h2 className="section-title" style={{ marginBottom: 4 }}>{receipt.shop_name}</h2>
@@ -85,7 +85,7 @@ export default async function ReceiptPage({
           <strong style={{ fontSize: "1.2rem" }}>{formatBaht(receipt.total_amount)}</strong>
         </div>
 
-        <div className="grid-2">
+        <div className="grid-2 receipt-actions">
           <PrintButton />
           <Link className="btn btn-secondary" href={`/payments/${bookingId}`}>
             กลับหน้ารับชำระเงิน

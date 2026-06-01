@@ -198,8 +198,9 @@ export default async function DashboardPage() {
               <div className="section-kicker">Next Up</div>
               <h2 className="section-title">คิวถัดไป</h2>
             </div>
-            <Link className="frontdesk-inline-link" href="/schedule">
-              ดูทั้งหมด
+            <Link className="tap-row-link" href="/schedule">
+              <span>ดูทั้งหมด</span>
+              <span aria-hidden="true">›</span>
             </Link>
           </div>
 
@@ -303,11 +304,13 @@ export default async function DashboardPage() {
                     <div className="frontdesk-alert-reason">{reason}</div>
 
                     <div className="frontdesk-alert-actions">
-                      <Link className="frontdesk-inline-link" href={`/bookings/${item.booking_id}`}>
-                        ดูรายละเอียด
+                      <Link className="tap-row-link" href={`/bookings/${item.booking_id}`}>
+                        <span>ดูรายละเอียด</span>
+                        <span aria-hidden="true">›</span>
                       </Link>
-                      <Link className="frontdesk-inline-link" href={`/payments/${item.booking_id}`}>
-                        ไปหน้าชำระเงิน
+                      <Link className="tap-row-link" href={`/payments/${item.booking_id}`}>
+                        <span>ไปหน้าชำระเงิน</span>
+                        <span aria-hidden="true">›</span>
                       </Link>
                     </div>
                   </article>
@@ -348,8 +351,9 @@ export default async function DashboardPage() {
               <div className="section-kicker">Rooms</div>
               <h2 className="section-title">ห้องพักวันนี้</h2>
             </div>
-            <Link className="frontdesk-inline-link" href="/rooms">
-              ไปหน้าห้องพัก
+            <Link className="tap-row-link" href="/rooms">
+              <span>ไปหน้าห้องพัก</span>
+              <span aria-hidden="true">›</span>
             </Link>
           </div>
 
@@ -374,8 +378,9 @@ export default async function DashboardPage() {
               <div className="section-kicker">Finance</div>
               <h2 className="section-title">รายรับวันนี้</h2>
             </div>
-            <Link className="frontdesk-inline-link" href="/finance">
-              ไปหน้าการเงิน
+            <Link className="tap-row-link" href="/finance">
+              <span>ไปหน้าการเงิน</span>
+              <span aria-hidden="true">›</span>
             </Link>
           </div>
 

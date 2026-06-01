@@ -93,6 +93,14 @@ function getTransactionFilterLabel(type: TransactionFilter) {
   return "ทั้งหมด";
 }
 
+function getReportMode(value: string | undefined) {
+  if (value === "month" || value === "range") {
+    return value;
+  }
+
+  return "daily";
+}
+
 export default async function FinanceReportPage({
   searchParams
 }: {
@@ -100,7 +108,7 @@ export default async function FinanceReportPage({
 }) {
   const params = (await searchParams) ?? {};
   const today = formatDateInput();
-  const mode = params.mode ?? "daily";
+  const mode = getReportMode(params.mode);
   const date = params.date ?? today;
   const month = params.month ?? today.slice(0, 7);
   const type = getTransactionFilter(params.type);
@@ -124,6 +132,8 @@ export default async function FinanceReportPage({
   const reportQuery = `mode=${encodeURIComponent(mode)}&date=${encodeURIComponent(date)}&month=${encodeURIComponent(month)}&start=${encodeURIComponent(startDate)}&end=${encodeURIComponent(endDate)}&type=${encodeURIComponent(type)}`;
   const commissionHref = `/finance/report?${reportQuery}&commission=1`;
   const closeCommissionHref = `/finance/report?${reportQuery}`;
+  const buildModeHref = (nextMode: string) =>
+    `/finance/report?mode=${encodeURIComponent(nextMode)}&date=${encodeURIComponent(date)}&month=${encodeURIComponent(month)}&start=${encodeURIComponent(startDate)}&end=${encodeURIComponent(endDate)}&type=${encodeURIComponent(type)}`;
 
   if (!hasSupabaseEnv()) {
     return (
@@ -152,7 +162,7 @@ export default async function FinanceReportPage({
       <PageHeader title="รายงานการเงิน" subtitle="สรุปรายวัน รายเดือน และช่วงวันที่" />
 
       <section className="card stack">
-        <div className="stack">
+        <div className="btn-grid">
           <Link className="btn btn-secondary" href="/finance">
             กลับหน้าการเงิน
           </Link>
@@ -162,18 +172,29 @@ export default async function FinanceReportPage({
           <Link className="btn btn-primary" href={exportHref}>
             ดาวน์โหลดรายงาน CSV
           </Link>
+          <Link className={`btn ${showCommission ? "btn-secondary" : "btn-primary"}`} href={showCommission ? closeCommissionHref : commissionHref}>
+            {showCommission ? "ซ่อนค่าคอมพนักงาน" : "คำนวณค่าคอมพนักงาน"}
+          </Link>
         </div>
       </section>
 
       <form className="card stack">
-        <label className="label">
-          รูปแบบรายงาน
-          <select className="select" name="mode" defaultValue={mode}>
-            <option value="daily">รายวัน</option>
-            <option value="month">รายเดือน</option>
-            <option value="range">ช่วงวันที่</option>
-          </select>
-        </label>
+        <div>
+          <div className="section-kicker">Report mode</div>
+          <div className="finance-report-mode-tabs" style={{ marginTop: 10 }}>
+            <Link className={`finance-report-mode-tab ${mode === "daily" ? "finance-report-mode-tab-active" : ""}`} href={buildModeHref("daily")}>
+              รายวัน
+            </Link>
+            <Link className={`finance-report-mode-tab ${mode === "month" ? "finance-report-mode-tab-active" : ""}`} href={buildModeHref("month")}>
+              รายเดือน
+            </Link>
+            <Link className={`finance-report-mode-tab ${mode === "range" ? "finance-report-mode-tab-active" : ""}`} href={buildModeHref("range")}>
+              ช่วงวันที่
+            </Link>
+          </div>
+        </div>
+
+        <input type="hidden" name="mode" value={mode} />
 
         <label className="label">
           ประเภทรายการ
@@ -184,37 +205,46 @@ export default async function FinanceReportPage({
           </select>
         </label>
 
-        <label className="label">
-          วันที่
-          <input className="input" type="date" name="date" defaultValue={date} />
-        </label>
-
-        <label className="label">
-          เดือน
-          <input className="input" type="month" name="month" defaultValue={month} />
-        </label>
-
-        <div className="grid-2">
+        {mode === "daily" ? (
           <label className="label">
-            วันที่เริ่ม
-            <input className="input" type="date" name="start" defaultValue={params.start ?? today} />
+            วันที่
+            <input className="input" type="date" name="date" defaultValue={date} />
           </label>
+        ) : (
+          <input type="hidden" name="date" value={date} />
+        )}
+
+        {mode === "month" ? (
           <label className="label">
-            วันที่สิ้นสุด
-            <input className="input" type="date" name="end" defaultValue={params.end ?? today} />
+            เดือน
+            <input className="input" type="month" name="month" defaultValue={month} />
           </label>
-        </div>
+        ) : (
+          <input type="hidden" name="month" value={month} />
+        )}
+
+        {mode === "range" ? (
+          <div className="grid-2">
+            <label className="label">
+              วันที่เริ่ม
+              <input className="input" type="date" name="start" defaultValue={params.start ?? today} />
+            </label>
+            <label className="label">
+              วันที่สิ้นสุด
+              <input className="input" type="date" name="end" defaultValue={params.end ?? today} />
+            </label>
+          </div>
+        ) : (
+          <>
+            <input type="hidden" name="start" value={startDate} />
+            <input type="hidden" name="end" value={endDate} />
+          </>
+        )}
 
         <button className="btn btn-primary" type="submit">
           ดูรายงาน
         </button>
       </form>
-
-      <section className="card stack">
-        <Link className={`btn ${showCommission ? "btn-secondary" : "btn-primary"}`} href={showCommission ? closeCommissionHref : commissionHref}>
-          {showCommission ? "ซ่อนค่าคอมพนักงาน" : "คำนวณค่าคอมพนักงาน"}
-        </Link>
-      </section>
 
       <section className="grid-2">
         <div className="card">
@@ -328,6 +358,8 @@ export default async function FinanceReportPage({
                       <DeleteButton
                         action={deleteCashTransaction.bind(null, transaction.id)}
                         label={transaction.booking_id ? "ลบรายการและคิวนี้" : "ลบรายการนี้"}
+                        description={transaction.booking_id ? "รายการนี้ผูกกับคิว เมื่อยืนยันระบบจะลบรายการและคิวที่เกี่ยวข้อง" : "ยืนยันลบรายการการเงินนี้ออกจากรายงาน"}
+                        confirmLabel={transaction.booking_id ? "ยืนยันลบรายการและคิว" : "ยืนยันลบรายการ"}
                       />
                     </div>
                   </div>

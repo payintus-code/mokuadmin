@@ -10,6 +10,7 @@ import {
   type CustomerDraftPet,
   type CustomerDraftValues
 } from "@/lib/customer-drafts";
+import { StickyFormActions } from "@/components/ui/sticky-form-actions";
 
 function getErrorMessage(error: unknown) {
   if (error instanceof Error && error.message) {
@@ -193,7 +194,7 @@ export function CustomerForm() {
             <p className="form-section-copy">เพิ่มสัตว์เลี้ยงไว้ก่อนได้หลายตัว แล้วค่อยบันทึกลูกค้าพร้อมกันครั้งเดียว</p>
           </div>
 
-          <button className="btn btn-secondary" type="button" onClick={handleAddPet}>
+          <button className="btn btn-ghost" type="button" onClick={handleAddPet}>
             เพิ่มสัตว์เลี้ยง
           </button>
         </div>
@@ -242,9 +243,11 @@ export function CustomerForm() {
 
       {errorMessage ? <div className="state-note state-note-danger">{errorMessage}</div> : null}
 
-      <button className="btn btn-primary" type="submit" disabled={isPending}>
-        {isPending ? "กำลังบันทึก..." : "เพิ่มลูกค้า"}
-      </button>
+      <StickyFormActions title="พร้อมบันทึกลูกค้า" hint="ปุ่มเพิ่มสัตว์เลี้ยงเป็นขั้นตอนเสริม ส่วนปุ่มนี้คือบันทึกลูกค้าจริง">
+        <button className="btn btn-primary" type="submit" disabled={isPending}>
+          {isPending ? "กำลังบันทึก..." : "เพิ่มลูกค้า"}
+        </button>
+      </StickyFormActions>
     </form>
   );
 }

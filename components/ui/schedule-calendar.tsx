@@ -35,6 +35,41 @@ export function ScheduleCalendar({
         <h2 className="section-title">ภาพรวมคิวตลอดเดือน</h2>
       </div>
 
+      <div className="schedule-mobile-strip">
+        <div className="section-copy">เลือกวันจากแถบด้านล่าง แล้วดูรายการคิวของวันนั้นต่อในส่วนถัดไป</div>
+        <div className="schedule-mobile-days" aria-label="เลือกวันที่">
+          {cells.map((cell) => {
+            const dayDate = parseISO(cell.date);
+            const monthForLink = format(dayDate, "yyyy-MM");
+
+            return (
+              <Link
+                key={`mobile-${cell.date}`}
+                href={{
+                  pathname: "/schedule",
+                  query: {
+                    month: monthForLink,
+                    date: cell.date,
+                    filters: useCustomFilters ? "custom" : undefined,
+                    grooming: groomingEnabled ? "1" : undefined,
+                    hotel: hotelEnabled ? "1" : undefined
+                  }
+                }}
+                className={clsx("schedule-mobile-day", {
+                  "schedule-mobile-day-selected": cell.isSelected,
+                  "schedule-day-outside": !cell.inCurrentMonth
+                })}
+                aria-current={cell.isSelected ? "date" : undefined}
+              >
+                <span className="schedule-mobile-weekday">{weekdayLabels[dayDate.getDay()]}</span>
+                <span className="schedule-mobile-number">{format(dayDate, "d")}</span>
+                <span className="schedule-mobile-count">{cell.items.length ? `${cell.items.length} คิว` : ""}</span>
+              </Link>
+            );
+          })}
+        </div>
+      </div>
+
       <div className="schedule-calendar-wrap">
         <div className="schedule-calendar-header">
           {weekdayLabels.map((label) => (

@@ -2,6 +2,7 @@ import { Search, Users } from "lucide-react";
 import { deleteCustomer } from "@/app/actions/customers";
 import { DeleteButton } from "@/components/forms/delete-button";
 import { EmptyState } from "@/components/ui/empty-state";
+import { MobileActionSheet } from "@/components/ui/mobile-action-sheet";
 import { PageHeader } from "@/components/ui/page-header";
 import { SetupNotice } from "@/components/ui/setup-notice";
 import { requireAppUser } from "@/lib/auth";
@@ -22,6 +23,9 @@ function normalizeSearch(value: string) {
 }
 
 export const dynamic = "force-dynamic";
+
+const DEFAULT_VISIBLE_CUSTOMERS = 25;
+const SEARCH_VISIBLE_CUSTOMERS = 50;
 
 export default async function CustomersPage({
   searchParams
@@ -62,6 +66,9 @@ export default async function CustomersPage({
       activePets.some((pet) => pet.name.toLocaleLowerCase().includes(normalizedQuery))
     );
   });
+  const visibleLimit = normalizedQuery ? SEARCH_VISIBLE_CUSTOMERS : DEFAULT_VISIBLE_CUSTOMERS;
+  const visibleCustomers = customers.slice(0, visibleLimit);
+  const hiddenCustomerCount = Math.max(customers.length - visibleCustomers.length, 0);
 
   return (
     <main className="stack">
@@ -72,7 +79,7 @@ export default async function CustomersPage({
         actionHref="/customers/new"
       />
 
-      <form className="panel stack" method="get">
+      <form className="panel stack sticky-search-panel" method="get">
         <div className="section-kicker">
           <Search size={14} strokeWidth={2.2} />
           <span>Search</span>
@@ -95,7 +102,15 @@ export default async function CustomersPage({
 
       <section className="stack">
         {customers.length ? (
-          customers.map((customer) => {
+          <>
+          {hiddenCustomerCount > 0 ? (
+            <div className="soft-note list-limit-note">
+              <strong>แสดง {visibleCustomers.length} จาก {customers.length} รายการ</strong>
+              <span>พิมพ์ชื่อ เบอร์โทร หรือชื่อสัตว์เลี้ยงเพื่อค้นหาให้แคบลงก่อนแก้ไขข้อมูล</span>
+            </div>
+          ) : null}
+
+          {visibleCustomers.map((customer) => {
             const activePets = (customer.pets ?? []).filter((pet) => pet.is_active);
 
             return (
@@ -107,7 +122,16 @@ export default async function CustomersPage({
                       {customer.phone}
                     </div>
                   </div>
-                  {currentUser.role === "admin" ? <DeleteButton action={deleteCustomer.bind(null, customer.id)} label="ลบลูกค้า" /> : null}
+                  {currentUser.role === "admin" ? (
+                    <MobileActionSheet label="จัดการ">
+                      <DeleteButton
+                        action={deleteCustomer.bind(null, customer.id)}
+                        label="ลบลูกค้า"
+                        description={`ยืนยันลบลูกค้า ${customer.full_name} รายการนี้จะไม่แสดงในรายการใช้งาน`}
+                        confirmLabel="ยืนยันลบลูกค้า"
+                      />
+                    </MobileActionSheet>
+                  ) : null}
                 </div>
 
                 <div className="list-card-body">
@@ -134,7 +158,8 @@ export default async function CustomersPage({
                 </div>
               </article>
             );
-          })
+          })}
+          </>
         ) : (
           <EmptyState
             icon={<Users size={24} strokeWidth={2.1} />}

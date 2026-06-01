@@ -1,57 +1,103 @@
 "use client";
 
 import clsx from "clsx";
-import { CalendarDays, Coins, Home, Menu, PawPrint, Users, X } from "lucide-react";
+import { CalendarDays, Coins, Home, Hotel, Menu, PawPrint, Users, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, type KeyboardEvent } from "react";
 
 const items = [
   { href: "/", label: "หน้าหลัก", icon: Home },
   { href: "/schedule", label: "ตารางคิว", icon: CalendarDays },
   { href: "/customers", label: "ข้อมูลลูกค้า", icon: Users },
   { href: "/pets", label: "ข้อมูลสัตว์เลี้ยง", icon: PawPrint },
-  { href: "/rooms", label: "ห้องพัก", icon: PawPrint },
+  { href: "/rooms", label: "ห้องพัก", icon: Hotel },
   { href: "/finance", label: "การเงิน", icon: Coins }
 ];
 
 export function BottomNav({ canViewFinance }: { canViewFinance: boolean }) {
   const pathname = usePathname();
-  const [isOpen, setIsOpen] = useState(false);
+  const checkboxRef = useRef<HTMLInputElement>(null);
   const visibleItems = canViewFinance ? items : items.filter((item) => item.href !== "/finance");
+  const primaryItems = visibleItems.slice(0, 4);
 
-  useEffect(() => {
-    if (!isOpen) {
+  function isActivePath(href: string) {
+    return href === "/" ? pathname === "/" : pathname.startsWith(href);
+  }
+
+  function toggleMenuFromKeyboard(event: KeyboardEvent<HTMLLabelElement>) {
+    if (event.key !== "Enter" && event.key !== " ") {
       return;
     }
 
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        setIsOpen(false);
-      }
+    event.preventDefault();
+    if (checkboxRef.current) {
+      checkboxRef.current.checked = !checkboxRef.current.checked;
     }
+  }
 
-    window.addEventListener("keydown", handleKeyDown);
-
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isOpen]);
+  useEffect(() => {
+    if (checkboxRef.current) {
+      checkboxRef.current.checked = false;
+    }
+  }, [pathname]);
 
   return (
     <>
-      <button
-        type="button"
-        className="menu-toggle"
-        aria-label={isOpen ? "ปิดเมนู" : "เปิดเมนู"}
-        aria-expanded={isOpen}
+      <input
+        ref={checkboxRef}
+        id="app-menu-toggle"
+        className="menu-checkbox"
+        type="checkbox"
+        tabIndex={-1}
+        aria-hidden="true"
+      />
+
+      <label
+        htmlFor="app-menu-toggle"
+        className="menu-toggle desktop-menu-toggle"
+        aria-label="เปิดหรือปิดเมนูหลัก"
         aria-controls="primary-navigation"
-        onClick={() => setIsOpen((current) => !current)}
+        role="button"
+        tabIndex={0}
+        onKeyDown={toggleMenuFromKeyboard}
       >
-        {isOpen ? <X size={20} strokeWidth={2.4} /> : <Menu size={20} strokeWidth={2.4} />}
-      </button>
+        <Menu className="menu-icon menu-icon-open" size={20} strokeWidth={2.4} />
+        <X className="menu-icon menu-icon-close" size={20} strokeWidth={2.4} />
+      </label>
 
-      {isOpen ? <button type="button" className="menu-backdrop" aria-label="ปิดเมนู" onClick={() => setIsOpen(false)} /> : null}
+      <label htmlFor="app-menu-toggle" className="menu-backdrop" aria-label="ปิดเมนู" />
 
-      <nav id="primary-navigation" className={clsx("menu-panel", { "menu-panel-open": isOpen })} aria-hidden={!isOpen}>
+      <nav className="mobile-tabbar" aria-label="เมนูหลักบนมือถือ">
+        {primaryItems.map((item) => (
+          <Link
+            key={item.href}
+            href={item.href}
+            className={clsx("mobile-tabbar-link", {
+              "mobile-tabbar-link-active": isActivePath(item.href)
+            })}
+            aria-current={isActivePath(item.href) ? "page" : undefined}
+          >
+            <item.icon size={20} strokeWidth={2.25} />
+            <span>{item.label}</span>
+          </Link>
+        ))}
+        <label
+          htmlFor="app-menu-toggle"
+          className="mobile-tabbar-link mobile-tabbar-button"
+          aria-label="เปิดหรือปิดเมนูเพิ่มเติม"
+          aria-controls="primary-navigation"
+          role="button"
+          tabIndex={0}
+          onKeyDown={toggleMenuFromKeyboard}
+        >
+          <Menu className="menu-icon menu-icon-open" size={20} strokeWidth={2.25} />
+          <X className="menu-icon menu-icon-close" size={20} strokeWidth={2.25} />
+          <span>เมนู</span>
+        </label>
+      </nav>
+
+      <nav id="primary-navigation" className="menu-panel">
         <div className="menu-panel-header">
           <div>
             <div className="menu-panel-kicker">Moku Pet Admin</div>
@@ -64,10 +110,10 @@ export function BottomNav({ canViewFinance }: { canViewFinance: boolean }) {
             <Link
               key={item.href}
               href={item.href}
-              onClick={() => setIsOpen(false)}
               className={clsx("menu-link", {
-                "menu-link-active": item.href === "/" ? pathname === "/" : pathname.startsWith(item.href)
+                "menu-link-active": isActivePath(item.href)
               })}
+              aria-current={isActivePath(item.href) ? "page" : undefined}
             >
               <item.icon className="menu-link-icon" size={18} strokeWidth={2.2} />
               <span>{item.label}</span>

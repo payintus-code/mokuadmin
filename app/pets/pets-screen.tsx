@@ -5,37 +5,25 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { MobileActionSheet } from "@/components/ui/mobile-action-sheet";
 import { PageHeader } from "@/components/ui/page-header";
 import { requireAppUser } from "@/lib/auth";
+import { lookupPets } from "@/lib/lookups";
 import { createClient } from "@/lib/supabase/server";
 
 const DEFAULT_VISIBLE_PETS = 25;
 const SEARCH_VISIBLE_PETS = 60;
 
-function normalizeSearch(value: string) {
-  return value.trim().toLocaleLowerCase();
-}
-
 export async function PetsScreen({ query = "" }: { query?: string }) {
   const currentUser = await requireAppUser();
-  const supabase = await createClient();
-  const { data: pets } = await supabase
-    .from("pets")
-    .select("id, name, species, breed, weight_kg, customers(full_name)")
-    .eq("is_active", true)
-    .order("created_at", { ascending: false });
-  const normalizedQuery = normalizeSearch(query);
-  const filteredPets = (pets ?? []).filter((pet) => {
-    if (!normalizedQuery) {
-      return true;
-    }
+  const visibleLimit = query ? SEARCH_VISIBLE_PETS : DEFAULT_VISIBLE_PETS;
+  const fetchedPets = await lookupPets(query, visibleLimit + 1);
+  const visiblePets = fetchedPets.slice(0, visibleLimit);
+  const hasMorePets = fetchedPets.length > visiblePets.length;
+  const customerIds = Array.from(new Set(visiblePets.map((pet) => pet.customer_id)));
 
-    const ownerName = (pet.customers as { full_name?: string } | null)?.full_name ?? "";
-    return [pet.name, pet.species, pet.breed ?? "", ownerName].some((value) =>
-      value.toLocaleLowerCase().includes(normalizedQuery)
-    );
-  });
-  const visibleLimit = normalizedQuery ? SEARCH_VISIBLE_PETS : DEFAULT_VISIBLE_PETS;
-  const visiblePets = filteredPets.slice(0, visibleLimit);
-  const hiddenPetCount = Math.max(filteredPets.length - visiblePets.length, 0);
+  const supabase = await createClient();
+  const { data: owners } = customerIds.length
+    ? await supabase.from("customers").select("id, full_name").in("id", customerIds)
+    : { data: [] };
+  const ownerNameById = new Map((owners ?? []).map((customer) => [customer.id, customer.full_name]));
 
   return (
     <main className="stack">
@@ -61,11 +49,11 @@ export async function PetsScreen({ query = "" }: { query?: string }) {
       </form>
 
       <section className="stack">
-        {filteredPets.length ? (
+        {visiblePets.length ? (
           <>
-          {hiddenPetCount > 0 ? (
+          {hasMorePets ? (
             <div className="soft-note list-limit-note">
-              <strong>แสดง {visiblePets.length} จาก {filteredPets.length} รายการ</strong>
+              <strong>แสดง {visiblePets.length} รายการแรก</strong>
               <span>ใช้ช่องค้นหาเพื่อเจอสัตว์เลี้ยงหรือเจ้าของที่ต้องการได้เร็วขึ้น</span>
             </div>
           ) : null}
@@ -95,7 +83,7 @@ export async function PetsScreen({ query = "" }: { query?: string }) {
               <div className="meta-grid">
                 <div className="meta-block">
                   <div className="meta-label">เจ้าของ</div>
-                  <div className="meta-value">{(pet.customers as { full_name?: string } | null)?.full_name ?? "-"}</div>
+                  <div className="meta-value">{ownerNameById.get(pet.customer_id) ?? "-"}</div>
                 </div>
                 <div className="meta-block">
                   <div className="meta-label">น้ำหนัก</div>

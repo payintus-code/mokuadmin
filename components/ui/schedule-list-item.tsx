@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { PendingLink } from "@/components/ui/pending-link";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { formatDate } from "@/lib/format";
 import type { DailyScheduleItem } from "@/types/database";
@@ -12,9 +12,9 @@ function formatServiceWindow(item: DailyScheduleItem) {
   const startDate = new Date(item.start_at);
   const endDate = new Date(item.end_at);
   const sameDay =
-    startDate.getFullYear() === endDate.getFullYear() &&
-    startDate.getMonth() === endDate.getMonth() &&
-    startDate.getDate() === endDate.getDate();
+    startDate.getUTCFullYear() === endDate.getUTCFullYear() &&
+    startDate.getUTCMonth() === endDate.getUTCMonth() &&
+    startDate.getUTCDate() === endDate.getUTCDate();
 
   if (sameDay) {
     return `${formatDate(item.start_at, "dd/MM/yyyy HH:mm")} - ${formatDate(item.end_at, "HH:mm")}`;
@@ -25,7 +25,7 @@ function formatServiceWindow(item: DailyScheduleItem) {
 
 export function ScheduleListItem({ item }: { item: DailyScheduleItem }) {
   return (
-    <Link className="schedule-list-link" href={`/bookings/${item.booking_id}`} aria-label={`ดูรายละเอียดคิวของ ${item.pet_name}`}>
+    <PendingLink className="schedule-list-link" href={`/bookings/${item.booking_id}`} aria-label={`ดูรายละเอียดคิวของ ${item.pet_name}`}>
       <article className="card schedule-list-card schedule-list-card-compact list-card">
         <div className="schedule-list-compact-top">
           <div>
@@ -53,6 +53,6 @@ export function ScheduleListItem({ item }: { item: DailyScheduleItem }) {
           <span className="schedule-list-view">ดูรายละเอียด</span>
         </div>
       </article>
-    </Link>
+    </PendingLink>
   );
 }

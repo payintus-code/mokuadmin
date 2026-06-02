@@ -2,9 +2,9 @@
 
 import clsx from "clsx";
 import { CalendarDays, Coins, Home, Hotel, Menu, PawPrint, Users, X } from "lucide-react";
-import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, type KeyboardEvent } from "react";
+import { PendingLink } from "@/components/ui/pending-link";
 
 const items = [
   { href: "/", label: "หน้าหลัก", icon: Home },
@@ -70,7 +70,7 @@ export function BottomNav({ canViewFinance }: { canViewFinance: boolean }) {
 
       <nav className="mobile-tabbar" aria-label="เมนูหลักบนมือถือ">
         {primaryItems.map((item) => (
-          <Link
+          <PendingLink
             key={item.href}
             href={item.href}
             className={clsx("mobile-tabbar-link", {
@@ -80,7 +80,7 @@ export function BottomNav({ canViewFinance }: { canViewFinance: boolean }) {
           >
             <item.icon size={20} strokeWidth={2.25} />
             <span>{item.label}</span>
-          </Link>
+          </PendingLink>
         ))}
         <label
           htmlFor="app-menu-toggle"
@@ -107,7 +107,7 @@ export function BottomNav({ canViewFinance }: { canViewFinance: boolean }) {
 
         <div className="menu-panel-links">
           {visibleItems.map((item) => (
-            <Link
+            <PendingLink
               key={item.href}
               href={item.href}
               className={clsx("menu-link", {
@@ -117,7 +117,7 @@ export function BottomNav({ canViewFinance }: { canViewFinance: boolean }) {
             >
               <item.icon className="menu-link-icon" size={18} strokeWidth={2.2} />
               <span>{item.label}</span>
-            </Link>
+            </PendingLink>
           ))}
         </div>
       </nav>

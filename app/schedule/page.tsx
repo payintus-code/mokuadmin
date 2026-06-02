@@ -72,22 +72,32 @@ function filterItems(items: DailyScheduleItem[], groomingEnabled: boolean, hotel
   });
 }
 
+function getUtcDateKey(value: string) {
+  return new Date(value).toISOString().slice(0, 10);
+}
+
+function addDaysToDateKey(value: string, days: number) {
+  return format(addDays(parseISO(value), days), "yyyy-MM-dd");
+}
+
 function groupItemsByDate(items: DailyScheduleItem[], visibleStart: Date, visibleEnd: Date) {
   const grouped = new Map<string, DailyScheduleItem[]>();
+  const visibleStartKey = format(visibleStart, "yyyy-MM-dd");
+  const visibleEndKey = format(visibleEnd, "yyyy-MM-dd");
 
   for (const item of items) {
-    const start = startOfDay(new Date(item.start_at));
+    const startKey = getUtcDateKey(item.start_at);
     const adjustedEnd = subMilliseconds(new Date(item.end_at), 1);
+    const endKey = getUtcDateKey(adjustedEnd.toISOString());
 
-    if (Number.isNaN(start.getTime()) || Number.isNaN(adjustedEnd.getTime()) || adjustedEnd < start) {
+    if (Number.isNaN(adjustedEnd.getTime()) || endKey < startKey) {
       continue;
     }
 
-    const loopStart = start > visibleStart ? start : visibleStart;
-    const loopEnd = startOfDay(adjustedEnd) < visibleEnd ? startOfDay(adjustedEnd) : visibleEnd;
+    const loopStartKey = startKey > visibleStartKey ? startKey : visibleStartKey;
+    const loopEndKey = endKey < visibleEndKey ? endKey : visibleEndKey;
 
-    for (let cursor = loopStart; cursor <= loopEnd; cursor = addDays(cursor, 1)) {
-      const key = format(cursor, "yyyy-MM-dd");
+    for (let key = loopStartKey; key <= loopEndKey; key = addDaysToDateKey(key, 1)) {
       const dayItems = grouped.get(key) ?? [];
       dayItems.push(item);
       grouped.set(key, dayItems);
@@ -132,7 +142,9 @@ export default async function SchedulePage({ searchParams }: { searchParams?: Sc
   const visibleEnd = endOfWeek(endOfMonth(selectedMonthDate), { weekStartsOn: 0 });
   const rangeEndExclusive = addDays(visibleEnd, 1);
 
-  const rangeItems = await getScheduleInRange(visibleStart.toISOString(), rangeEndExclusive.toISOString());
+  const rangeStartIso = `${format(visibleStart, "yyyy-MM-dd")}T00:00:00.000Z`;
+  const rangeEndExclusiveIso = `${format(rangeEndExclusive, "yyyy-MM-dd")}T00:00:00.000Z`;
+  const rangeItems = await getScheduleInRange(rangeStartIso, rangeEndExclusiveIso);
   const filteredItems = filterItems(rangeItems, groomingEnabled, hotelEnabled);
   const groupedItems = groupItemsByDate(filteredItems, visibleStart, visibleEnd);
 

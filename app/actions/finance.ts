@@ -1,9 +1,9 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { deleteBookingRecord } from "@/lib/bookings";
 import { requireAdmin } from "@/lib/auth";
 import { deleteCashTransactionRecord, getCashTransactionById } from "@/lib/finance";
+import { revalidateBookingCreationSurfaces, revalidateFinanceSurfaces } from "@/lib/revalidation";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export async function createCashTransaction(formData: FormData) {
@@ -48,8 +48,7 @@ export async function createCashTransaction(formData: FormData) {
     throw new Error(error.message);
   }
 
-  revalidatePath("/finance");
-  revalidatePath("/");
+  revalidateFinanceSurfaces();
 }
 
 export async function deleteCashTransaction(transactionId: string) {
@@ -67,13 +66,10 @@ export async function deleteCashTransaction(transactionId: string) {
 
   if (transaction.booking_id) {
     await deleteBookingRecord(transaction.booking_id);
-    revalidatePath("/schedule");
-    revalidatePath("/bookings/new");
+    revalidateBookingCreationSurfaces();
+    revalidateFinanceSurfaces({ includeReport: true });
   } else {
     await deleteCashTransactionRecord(transactionId);
+    revalidateFinanceSurfaces({ includeReport: true });
   }
-
-  revalidatePath("/");
-  revalidatePath("/finance");
-  revalidatePath("/finance/report");
 }

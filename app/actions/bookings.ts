@@ -1,6 +1,5 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import {
   cancelBookingRecord,
   checkGroomingDraftAvailability as checkGroomingDraftAvailabilityQuery,
@@ -14,17 +13,21 @@ import {
 import { requireAdmin, requireAppUser } from "@/lib/auth";
 import { validateHotelStayDates, validatePaymentDraft } from "@/lib/booking-draft";
 import { createOrUpdateBookingPayment } from "@/lib/payments";
+import { revalidateBookingCreationSurfaces, revalidateBookingSurfaces, revalidateFinanceSurfaces } from "@/lib/revalidation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { BookingStatus, PaymentCollectionType, PaymentMethod } from "@/types/database";
 
 function toIsoDateTime(value: string, fieldName: string) {
-  const parsed = new Date(value);
+  const normalized = value.trim();
+  const localDateTimeMatch = normalized.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})(?::\d{2})?$/);
+  const isoValue = localDateTimeMatch ? `${localDateTimeMatch[1]}T${localDateTimeMatch[2]}:00.000Z` : normalized;
+  const parsed = new Date(isoValue);
 
   if (Number.isNaN(parsed.getTime())) {
     throw new Error(`${fieldName} is invalid`);
   }
 
-  return parsed.toISOString();
+  return localDateTimeMatch ? isoValue : parsed.toISOString();
 }
 
 function assertStartBeforeEnd(startAt: string, endAt: string) {
@@ -344,11 +347,7 @@ export async function createBooking(formData: FormData) {
     throw error;
   }
 
-  revalidatePath("/");
-  revalidatePath("/schedule");
-  revalidatePath("/bookings/new");
-  revalidatePath("/customers");
-  revalidatePath("/pets");
+  revalidateBookingCreationSurfaces();
 }
 
 export async function updateBooking(input: {
@@ -374,20 +373,14 @@ export async function updateBooking(input: {
     totalAmount: input.totalAmount,
     note: input.note
   });
-  revalidatePath("/");
-  revalidatePath("/schedule");
-  revalidatePath("/finance");
-  revalidatePath(`/bookings/${input.bookingId}`);
+  revalidateBookingSurfaces(input.bookingId);
 }
 
 export async function quickUpdateBookingStatus(bookingId: string, status: BookingStatus) {
   await requireAppUser();
 
   await updateBookingStatus(bookingId, status);
-  revalidatePath("/");
-  revalidatePath("/schedule");
-  revalidatePath("/finance");
-  revalidatePath(`/bookings/${bookingId}`);
+  revalidateBookingSurfaces(bookingId);
 }
 
 export async function completeBooking(formData: FormData) {
@@ -407,10 +400,7 @@ export async function completeBooking(formData: FormData) {
   await updateBookingRecord(bookingId, { totalAmount });
   await updateBookingStatus(bookingId, "done");
 
-  revalidatePath("/");
-  revalidatePath("/schedule");
-  revalidatePath("/finance");
-  revalidatePath(`/bookings/${bookingId}`);
+  revalidateBookingSurfaces(bookingId);
 }
 
 export async function updateBookingTotal(formData: FormData) {
@@ -429,30 +419,22 @@ export async function updateBookingTotal(formData: FormData) {
 
   await updateBookingRecord(bookingId, { totalAmount });
 
-  revalidatePath("/");
-  revalidatePath("/schedule");
-  revalidatePath("/finance");
-  revalidatePath(`/bookings/${bookingId}`);
+  revalidateBookingSurfaces(bookingId);
 }
 
 export async function cancelBooking(bookingId: string) {
   await requireAppUser();
 
   await cancelBookingRecord(bookingId);
-  revalidatePath("/");
-  revalidatePath("/schedule");
-  revalidatePath("/finance");
-  revalidatePath(`/bookings/${bookingId}`);
+  revalidateBookingSurfaces(bookingId);
 }
 
 export async function deleteBooking(bookingId: string) {
   await requireAdmin();
 
   await deleteBookingRecord(bookingId);
-  revalidatePath("/");
-  revalidatePath("/schedule");
-  revalidatePath("/finance");
-  revalidatePath("/bookings/new");
+  revalidateBookingCreationSurfaces();
+  revalidateFinanceSurfaces();
 }
 
 export async function getDailySchedule(day: string) {

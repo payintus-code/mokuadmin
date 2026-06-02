@@ -1,5 +1,5 @@
 import { PawPrint } from "lucide-react";
-import Link from "next/link";
+import { PendingLink } from "@/components/ui/pending-link";
 
 export function PageHeader({
   title,
@@ -27,9 +27,9 @@ export function PageHeader({
         </div>
         {actionLabel && actionHref ? (
           <div className="page-header-action">
-            <Link className="btn btn-primary" href={actionHref}>
+            <PendingLink className="btn btn-primary" href={actionHref}>
               {actionLabel}
-            </Link>
+            </PendingLink>
           </div>
         ) : null}
       </div>

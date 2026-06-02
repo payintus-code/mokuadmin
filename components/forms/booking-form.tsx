@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useFormStatus } from "react-dom";
 import { checkGroomingAvailability, createBooking, getAvailableRooms } from "@/app/actions/bookings";
+import { getCustomerPets, searchCustomers } from "@/app/actions/lookups";
 import { validateHotelStayDates, validatePaymentDraft } from "@/lib/booking-draft";
 import {
   normalizePhone,
@@ -16,8 +17,7 @@ import type { GroomingDraftAvailability } from "@/lib/grooming-draft";
 import type { Customer, PaymentCollectionType, PaymentMethod, Pet, Room, Service } from "@/types/database";
 
 type BookingFormProps = {
-  customers: Customer[];
-  pets: Pet[];
+  initialCustomers: Customer[];
   rooms: Room[];
   services: Service[];
 };
@@ -166,6 +166,22 @@ function getSpeciesLabel(value: string) {
 
 function formatCurrency(amount: number) {
   return new Intl.NumberFormat("th-TH").format(amount);
+}
+
+function mergeById<T extends { id: string }>(nextItems: T[], currentItems: T[]) {
+  const map = new Map<string, T>();
+
+  for (const item of nextItems) {
+    map.set(item.id, item);
+  }
+
+  for (const item of currentItems) {
+    if (!map.has(item.id)) {
+      map.set(item.id, item);
+    }
+  }
+
+  return Array.from(map.values());
 }
 
 function findMatchingService(serviceText: string, services: Service[]) {
@@ -336,9 +352,11 @@ function ReviewButton({
   );
 }
 
-export function BookingForm({ customers, pets, rooms, services }: BookingFormProps) {
+export function BookingForm({ initialCustomers, rooms, services }: BookingFormProps) {
   const router = useRouter();
   const defaults = useMemo(() => buildDefaultDateRange(), []);
+  const [customers, setCustomers] = useState<Customer[]>(initialCustomers);
+  const [pets, setPets] = useState<Pet[]>([]);
   const hasExistingCustomers = customers.length > 0;
 
   const groomingServices = useMemo(() => services.filter((service) => service.category !== "hotel"), [services]);
@@ -348,6 +366,8 @@ export function BookingForm({ customers, pets, rooms, services }: BookingFormPro
   const [bookingType, setBookingType] = useState<"grooming" | "hotel">("grooming");
   const [customerMode, setCustomerMode] = useState<"existing" | "new">(hasExistingCustomers ? "existing" : "new");
   const [customerSearch, setCustomerSearch] = useState("");
+  const [customerLookupStatus, setCustomerLookupStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
+  const [petLookupStatus, setPetLookupStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [customerId, setCustomerId] = useState("");
   const [primaryPetId, setPrimaryPetId] = useState("");
   const [secondaryPetId, setSecondaryPetId] = useState("");
@@ -400,23 +420,37 @@ export function BookingForm({ customers, pets, rooms, services }: BookingFormPro
   const hotelCheckInDatePickerRef = useRef<HTMLInputElement>(null);
   const hotelCheckOutDatePickerRef = useRef<HTMLInputElement>(null);
 
+  useEffect(() => {
+    let active = true;
+
+    const timer = window.setTimeout(async () => {
+      setCustomerLookupStatus("loading");
+
+      try {
+        const nextCustomers = await searchCustomers(customerSearch, customerSearch.trim() ? 50 : 25);
+
+        if (!active) {
+          return;
+        }
+
+        setCustomers(nextCustomers);
+        setCustomerLookupStatus("ready");
+      } catch {
+        if (active) {
+          setCustomerLookupStatus("error");
+        }
+      }
+    }, customerSearch.trim() ? 250 : 0);
+
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [customerSearch]);
+
   const filteredCustomers = useMemo(() => {
-    const query = normalizeComparison(customerSearch);
-
-    if (!query) {
-      return customers;
-    }
-
-    return customers.filter((customer) => {
-      const customerPets = pets.filter((pet) => pet.customer_id === customer.id);
-
-      return [
-        normalizeComparison(customer.full_name),
-        normalizeComparison(customer.phone),
-        ...customerPets.map((pet) => normalizeComparison(pet.name))
-      ].some((value) => value.includes(query));
-    });
-  }, [customerSearch, customers, pets]);
+    return customers;
+  }, [customers]);
 
   useEffect(() => {
     if (!hasExistingCustomers && customerMode !== "new") {
@@ -433,7 +467,7 @@ export function BookingForm({ customers, pets, rooms, services }: BookingFormPro
       return;
     }
 
-    if (filteredCustomers.length === 0) {
+    if (customerLookupStatus !== "loading" && filteredCustomers.length === 0) {
       const importDraft = importPreview?.data;
       const draft = parseCustomerSearchDraft(customerSearch);
 
@@ -463,7 +497,7 @@ export function BookingForm({ customers, pets, rooms, services }: BookingFormPro
 
       setCustomerMode("new");
     }
-  }, [customerFullName, customerMode, customerPhone, customerSearch, filteredCustomers.length, importPreview, newPetName]);
+  }, [customerFullName, customerLookupStatus, customerMode, customerPhone, customerSearch, filteredCustomers.length, importPreview, newPetName]);
 
   const resolvedCustomerId =
     customerMode === "existing" && filteredCustomers.some((customer) => customer.id === customerId) ? customerId : "";
@@ -472,6 +506,35 @@ export function BookingForm({ customers, pets, rooms, services }: BookingFormPro
     () => pets.filter((pet) => pet.customer_id === resolvedCustomerId),
     [pets, resolvedCustomerId]
   );
+
+  useEffect(() => {
+    if (!resolvedCustomerId) {
+      setPetLookupStatus("idle");
+      return;
+    }
+
+    let active = true;
+    setPetLookupStatus("loading");
+
+    getCustomerPets(resolvedCustomerId)
+      .then((nextPets) => {
+        if (!active) {
+          return;
+        }
+
+        setPets((current) => mergeById(nextPets, current));
+        setPetLookupStatus("ready");
+      })
+      .catch(() => {
+        if (active) {
+          setPetLookupStatus("error");
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [resolvedCustomerId]);
 
   const resolvedPrimaryPetId = availablePrimaryPets.some((pet) => pet.id === primaryPetId) ? primaryPetId : "";
 
@@ -667,9 +730,13 @@ export function BookingForm({ customers, pets, rooms, services }: BookingFormPro
 
   function resetFormState() {
     const nextDefaults = buildDefaultDateRange();
+    setCustomers(initialCustomers);
+    setPets([]);
     setBookingType("grooming");
-    setCustomerMode(hasExistingCustomers ? "existing" : "new");
+    setCustomerMode(initialCustomers.length ? "existing" : "new");
     setCustomerSearch("");
+    setCustomerLookupStatus("idle");
+    setPetLookupStatus("idle");
     setCustomerId("");
     setPrimaryPetId("");
     setSecondaryPetId("");
@@ -716,18 +783,16 @@ export function BookingForm({ customers, pets, rooms, services }: BookingFormPro
     setRoomSelectionNotice("");
   }
 
-  function applyImportedCustomer(data: ImportedBookingChatData) {
-    const matchedCustomer =
-      customers.find((customer) => normalizePhone(customer.phone) === data.normalizedPhone) ?? null;
+  async function applyImportedCustomer(data: ImportedBookingChatData) {
+    const lookupQuery = data.phone || data.customerName || data.petName;
+    const nextCustomers = await searchCustomers(lookupQuery, 50);
+    const matchedCustomer = nextCustomers.find((customer) => normalizePhone(customer.phone) === data.normalizedPhone) ?? null;
+    const matchedCustomerPets = matchedCustomer ? await getCustomerPets(matchedCustomer.id) : [];
     const matchedPet =
-      matchedCustomer
-        ? pets.find(
-            (pet) =>
-              pet.customer_id === matchedCustomer.id &&
-              normalizeComparison(pet.name) === normalizeComparison(data.petName)
-          ) ?? null
-        : null;
+      matchedCustomerPets.find((pet) => normalizeComparison(pet.name) === normalizeComparison(data.petName)) ?? null;
 
+    setCustomers(nextCustomers);
+    setPets((current) => mergeById(matchedCustomerPets, current));
     setCustomerSearch(`${data.customerName} ${data.petName} ${data.phone}`.trim());
 
     if (matchedCustomer && matchedPet) {
@@ -746,7 +811,7 @@ export function BookingForm({ customers, pets, rooms, services }: BookingFormPro
     setNewPetSpecies(data.speciesHint ?? "cat");
   }
 
-  function handleImport() {
+  async function handleImport() {
     const parsed = parseImportedBookingChat(importText);
 
     setImportError("");
@@ -767,7 +832,16 @@ export function BookingForm({ customers, pets, rooms, services }: BookingFormPro
     setImportedContextNote(buildImportedContextNote(data));
     setBookingType(data.serviceType);
     setIsImportOpen(true);
-    applyImportedCustomer(data);
+    try {
+      await applyImportedCustomer(data);
+    } catch (error) {
+      warnings.push(error instanceof Error ? error.message : "Unable to lookup imported customer");
+      setCustomerMode("new");
+      setCustomerFullName(data.customerName);
+      setCustomerPhone(data.phone);
+      setNewPetName(data.petName);
+      setNewPetSpecies(data.speciesHint ?? "cat");
+    }
 
     if (data.depositAmount) {
       setPaymentCollectionType("deposit");
@@ -1098,10 +1172,16 @@ export function BookingForm({ customers, pets, rooms, services }: BookingFormPro
                   className="select"
                   name="customerId"
                   value={resolvedCustomerId}
-                  onChange={(event) => setCustomerId(event.target.value)}
+                  onChange={(event) => {
+                    setCustomerId(event.target.value);
+                    setPrimaryPetId("");
+                    setSecondaryPetId("");
+                  }}
                   required
                 >
-                  <option value="">{filteredCustomers.length ? "เลือกลูกค้า" : "ไม่พบลูกค้าที่ตรงกับการค้นหา"}</option>
+                  <option value="">
+                    {customerLookupStatus === "loading" ? "กำลังค้นหา..." : filteredCustomers.length ? "เลือกลูกค้า" : "ไม่พบลูกค้าที่ตรงกับการค้นหา"}
+                  </option>
                   {filteredCustomers.map((customer) => (
                     <option key={customer.id} value={customer.id}>
                       {customer.full_name} {customer.phone ? `(${customer.phone})` : ""}
@@ -1119,7 +1199,9 @@ export function BookingForm({ customers, pets, rooms, services }: BookingFormPro
                   onChange={(event) => setPrimaryPetId(event.target.value)}
                   required
                 >
-                  <option value="">{resolvedCustomerId ? "เลือกสัตว์เลี้ยง" : "เลือกลูกค้าก่อน"}</option>
+                  <option value="">
+                    {petLookupStatus === "loading" ? "กำลังโหลดสัตว์เลี้ยง..." : resolvedCustomerId ? "เลือกสัตว์เลี้ยง" : "เลือกลูกค้าก่อน"}
+                  </option>
                   {availablePrimaryPets.map((pet) => (
                     <option key={pet.id} value={pet.id}>
                       {pet.name} ({getSpeciesLabel(pet.species)})
@@ -1141,7 +1223,9 @@ export function BookingForm({ customers, pets, rooms, services }: BookingFormPro
               </div>
             ) : null}
 
-            {!filteredCustomers.length ? <FieldMessage tone="warning">ไม่พบลูกค้าที่ตรงกับคำค้น ลองเพิ่มลูกค้าใหม่แทน</FieldMessage> : null}
+            {customerLookupStatus === "error" ? <FieldMessage tone="danger">ไม่สามารถค้นหาลูกค้าได้</FieldMessage> : null}
+            {petLookupStatus === "error" ? <FieldMessage tone="danger">ไม่สามารถโหลดสัตว์เลี้ยงของลูกค้ารายนี้ได้</FieldMessage> : null}
+            {!filteredCustomers.length && customerLookupStatus !== "loading" ? <FieldMessage tone="warning">ไม่พบลูกค้าที่ตรงกับคำค้น ลองเพิ่มลูกค้าใหม่แทน</FieldMessage> : null}
           </div>
         ) : (
           <div className="stack">

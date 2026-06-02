@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { cache } from "react";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import type { UserRole } from "@/types/database";
@@ -16,7 +17,7 @@ type AppUserRow = {
   is_active: boolean;
 };
 
-export async function getCurrentAppUser(): Promise<AppUserContext | null> {
+export const getCurrentAppUser = cache(async (): Promise<AppUserContext | null> => {
   const supabase = await createClient();
   const {
     data: { user },
@@ -44,7 +45,7 @@ export async function getCurrentAppUser(): Promise<AppUserContext | null> {
     fullName: appUser.full_name,
     role: appUser.role
   };
-}
+});
 
 export async function requireAppUser(options?: { role?: UserRole }) {
   const user = await getCurrentAppUser();

@@ -7,6 +7,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { SetupNotice } from "@/components/ui/setup-notice";
 import { requireAppUser } from "@/lib/auth";
 import { hasSupabaseEnv } from "@/lib/env";
+import { lookupCustomers } from "@/lib/lookups";
 import { createClient } from "@/lib/supabase/server";
 
 type CustomerWithPets = {
@@ -17,10 +18,6 @@ type CustomerWithPets = {
   note: string | null;
   pets: Array<{ id: string; name: string; species: string; is_active: boolean }> | null;
 };
-
-function normalizeSearch(value: string) {
-  return value.trim().toLocaleLowerCase();
-}
 
 export const dynamic = "force-dynamic";
 
@@ -44,31 +41,33 @@ export default async function CustomersPage({
   const currentUser = await requireAppUser();
   const params = (await searchParams) ?? {};
   const query = params.q?.trim() ?? "";
-  const normalizedQuery = normalizeSearch(query);
+  const visibleLimit = query ? SEARCH_VISIBLE_CUSTOMERS : DEFAULT_VISIBLE_CUSTOMERS;
+  const fetchedCustomers = await lookupCustomers(query, visibleLimit + 1);
+  const visibleCustomers = fetchedCustomers.slice(0, visibleLimit);
+  const hasMoreCustomers = fetchedCustomers.length > visibleCustomers.length;
+  const visibleCustomerIds = visibleCustomers.map((customer) => customer.id);
 
   const supabase = await createClient();
-  const { data } = await supabase
-    .from("customers")
-    .select("id, full_name, phone, facebook_name, note, pets(id, name, species, is_active)")
-    .eq("is_active", true)
-    .order("created_at", { ascending: false });
+  const { data: activePets } = visibleCustomerIds.length
+    ? await supabase
+        .from("pets")
+        .select("id, customer_id, name, species, is_active")
+        .in("customer_id", visibleCustomerIds)
+        .eq("is_active", true)
+        .order("name")
+    : { data: [] };
+  const petsByCustomerId = new Map<string, NonNullable<CustomerWithPets["pets"]>>();
 
-  const customers = ((data ?? []) as CustomerWithPets[]).filter((customer) => {
-    if (!normalizedQuery) {
-      return true;
-    }
+  for (const pet of activePets ?? []) {
+    const pets = petsByCustomerId.get(pet.customer_id) ?? [];
+    pets.push(pet);
+    petsByCustomerId.set(pet.customer_id, pets);
+  }
 
-    const activePets = (customer.pets ?? []).filter((pet) => pet.is_active);
-
-    return (
-      customer.full_name.toLocaleLowerCase().includes(normalizedQuery) ||
-      customer.phone.toLocaleLowerCase().includes(normalizedQuery) ||
-      activePets.some((pet) => pet.name.toLocaleLowerCase().includes(normalizedQuery))
-    );
-  });
-  const visibleLimit = normalizedQuery ? SEARCH_VISIBLE_CUSTOMERS : DEFAULT_VISIBLE_CUSTOMERS;
-  const visibleCustomers = customers.slice(0, visibleLimit);
-  const hiddenCustomerCount = Math.max(customers.length - visibleCustomers.length, 0);
+  const customers: CustomerWithPets[] = visibleCustomers.map((customer) => ({
+    ...customer,
+    pets: petsByCustomerId.get(customer.id) ?? []
+  }));
 
   return (
     <main className="stack">
@@ -103,14 +102,14 @@ export default async function CustomersPage({
       <section className="stack">
         {customers.length ? (
           <>
-          {hiddenCustomerCount > 0 ? (
+          {hasMoreCustomers ? (
             <div className="soft-note list-limit-note">
-              <strong>แสดง {visibleCustomers.length} จาก {customers.length} รายการ</strong>
+              <strong>แสดง {visibleCustomers.length} รายการแรก</strong>
               <span>พิมพ์ชื่อ เบอร์โทร หรือชื่อสัตว์เลี้ยงเพื่อค้นหาให้แคบลงก่อนแก้ไขข้อมูล</span>
             </div>
           ) : null}
 
-          {visibleCustomers.map((customer) => {
+          {customers.map((customer) => {
             const activePets = (customer.pets ?? []).filter((pet) => pet.is_active);
 
             return (

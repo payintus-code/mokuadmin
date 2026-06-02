@@ -1,6 +1,6 @@
 import clsx from "clsx";
 import { format, parseISO } from "date-fns";
-import Link from "next/link";
+import { PendingLink } from "@/components/ui/pending-link";
 import type { DailyScheduleItem } from "@/types/database";
 
 const weekdayLabels = ["อา", "จ", "อ", "พ", "พฤ", "ศ", "ส"];
@@ -43,7 +43,7 @@ export function ScheduleCalendar({
             const monthForLink = format(dayDate, "yyyy-MM");
 
             return (
-              <Link
+              <PendingLink
                 key={`mobile-${cell.date}`}
                 href={{
                   pathname: "/schedule",
@@ -64,7 +64,7 @@ export function ScheduleCalendar({
                 <span className="schedule-mobile-weekday">{weekdayLabels[dayDate.getDay()]}</span>
                 <span className="schedule-mobile-number">{format(dayDate, "d")}</span>
                 <span className="schedule-mobile-count">{cell.items.length ? `${cell.items.length} คิว` : ""}</span>
-              </Link>
+              </PendingLink>
             );
           })}
         </div>
@@ -87,7 +87,7 @@ export function ScheduleCalendar({
             const remainingCount = Math.max(cell.items.length - visibleItems.length, 0);
 
             return (
-              <Link
+              <PendingLink
                 key={cell.date}
                 href={{
                   pathname: "/schedule",
@@ -121,7 +121,7 @@ export function ScheduleCalendar({
                   ))}
                   {remainingCount ? <span className="schedule-chip schedule-chip-more">+{remainingCount} คิว</span> : null}
                 </div>
-              </Link>
+              </PendingLink>
             );
           })}
         </div>

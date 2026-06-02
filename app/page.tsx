@@ -3,6 +3,7 @@ import Link from "next/link";
 import { EmptyState } from "@/components/ui/empty-state";
 import { MetricCard } from "@/components/ui/metric-card";
 import { PaymentStatusBadge } from "@/components/ui/payment-status-badge";
+import { PendingLink } from "@/components/ui/pending-link";
 import { SetupNotice } from "@/components/ui/setup-notice";
 import { requireAppUser } from "@/lib/auth";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -331,13 +332,13 @@ export default async function DashboardPage() {
 
             <div className="quick-links">
               {visibleQuickLinks.map((item) => (
-                <Link key={item.href} className="quick-link-card" href={item.href}>
+                <PendingLink key={item.href} className="quick-link-card" href={item.href}>
                   <div className="quick-link-icon">
                     <item.icon size={20} strokeWidth={2.1} />
                   </div>
                   <div className="quick-link-title">{item.title}</div>
                   <div className="quick-link-copy">{item.copy}</div>
-                </Link>
+                </PendingLink>
               ))}
             </div>
           </section>

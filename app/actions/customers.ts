@@ -1,8 +1,8 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { parseCustomerDraftPets } from "@/lib/customer-drafts";
 import { requireAdmin, requireAppUser } from "@/lib/auth";
+import { revalidateCustomerPetSurfaces } from "@/lib/revalidation";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export async function createCustomer(formData: FormData) {
@@ -65,9 +65,7 @@ export async function createCustomer(formData: FormData) {
     }
   }
 
-  revalidatePath("/customers");
-  revalidatePath("/pets");
-  revalidatePath("/bookings/new");
+  revalidateCustomerPetSurfaces();
 }
 
 export async function deleteCustomer(customerId: string) {
@@ -102,6 +100,5 @@ export async function deleteCustomer(customerId: string) {
     throw new Error(error.message);
   }
 
-  revalidatePath("/customers");
-  revalidatePath("/pets");
+  revalidateCustomerPetSurfaces();
 }

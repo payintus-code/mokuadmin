@@ -1,9 +1,9 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireAppUser } from "@/lib/auth";
 import { confirmBookingPayment, updateBookingPayment } from "@/lib/payments";
+import { revalidateBookingSurfaces } from "@/lib/revalidation";
 import type { PaymentMethod } from "@/types/database";
 
 export async function confirmPayment(formData: FormData) {
@@ -28,12 +28,7 @@ export async function confirmPayment(formData: FormData) {
     actorUserId: currentUser.id
   });
 
-  revalidatePath("/");
-  revalidatePath("/schedule");
-  revalidatePath("/finance");
-  revalidatePath(`/payments/${bookingId}`);
-  revalidatePath(`/bookings/${bookingId}`);
-  revalidatePath(`/receipts/${bookingId}`);
+  revalidateBookingSurfaces(bookingId);
   redirect(`/payments/${bookingId}`);
 }
 
@@ -59,11 +54,6 @@ export async function updateRecordedPayment(formData: FormData) {
     actorUserId: currentUser.id
   });
 
-  revalidatePath("/");
-  revalidatePath("/schedule");
-  revalidatePath("/finance");
-  revalidatePath(`/payments/${bookingId}`);
-  revalidatePath(`/bookings/${bookingId}`);
-  revalidatePath(`/receipts/${bookingId}`);
+  revalidateBookingSurfaces(bookingId);
   redirect(`/payments/${bookingId}`);
 }

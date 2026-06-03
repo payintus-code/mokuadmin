@@ -4,6 +4,7 @@ import { DeleteButton } from "@/components/forms/delete-button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { MobileActionSheet } from "@/components/ui/mobile-action-sheet";
 import { PageHeader } from "@/components/ui/page-header";
+import { PendingLink } from "@/components/ui/pending-link";
 import { SetupNotice } from "@/components/ui/setup-notice";
 import { requireAppUser } from "@/lib/auth";
 import { hasSupabaseEnv } from "@/lib/env";
@@ -155,6 +156,10 @@ export default async function CustomersPage({
                     </div>
                   ) : null}
                 </div>
+                <PendingLink className="tap-row-link" href={`/customers/${customer.id}`}>
+                  <span>ดูประวัติลูกค้า</span>
+                  <span aria-hidden="true">›</span>
+                </PendingLink>
               </article>
             );
           })}

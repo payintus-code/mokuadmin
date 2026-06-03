@@ -1,12 +1,12 @@
-import Link from "next/link";
 import { BookingPaymentForm } from "@/components/forms/booking-payment-form";
 import { PageHeader } from "@/components/ui/page-header";
 import { PaymentStatusBadge } from "@/components/ui/payment-status-badge";
 import { SetupNotice } from "@/components/ui/setup-notice";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { requireAppUser } from "@/lib/auth";
 import { hasSupabaseEnv } from "@/lib/env";
-import { formatBaht } from "@/lib/format";
 import { prepareBookingPayment } from "@/lib/payments";
+import type { BookingStatus } from "@/types/database";
 
 export const dynamic = "force-dynamic";
 
@@ -39,7 +39,10 @@ export default async function PaymentPage({
             <strong>{paymentInfo.bookingNo}</strong>
             <div className="muted">{paymentInfo.bookingType === "hotel" ? "โรงแรม" : "อาบน้ำ / ตัดขน"}</div>
           </div>
-          <PaymentStatusBadge status={paymentInfo.paymentStatus} />
+          <div className="schedule-badge-stack">
+            <StatusBadge status={paymentInfo.bookingStatus as BookingStatus} />
+            <PaymentStatusBadge status={paymentInfo.paymentStatus} />
+          </div>
         </div>
 
         <div className="grid-2">
@@ -53,33 +56,10 @@ export default async function PaymentPage({
           </div>
         </div>
 
-        <div className="grid-2">
-          <div>
-            <div className="muted">บริการ / ห้อง</div>
-            <strong>{paymentInfo.roomName || paymentInfo.servicesSummary || "-"}</strong>
-          </div>
-          <div>
-            <div className="muted">ยอดรวม</div>
-            <strong>{formatBaht(paymentInfo.totalAmount)}</strong>
-          </div>
+        <div>
+          <div className="muted">บริการ / ห้อง</div>
+          <strong>{paymentInfo.roomName || paymentInfo.servicesSummary || "-"}</strong>
         </div>
-
-        <div className="grid-2">
-          <div>
-            <div className="muted">รับแล้ว</div>
-            <strong>{formatBaht(paymentInfo.paidAmount)}</strong>
-          </div>
-          <div>
-            <div className="muted">คงเหลือ</div>
-            <strong>{formatBaht(paymentInfo.remainingAmount)}</strong>
-          </div>
-        </div>
-
-        {paymentInfo.paymentStatus === "paid" ? (
-          <Link className="btn btn-secondary" href={`/receipts/${bookingId}`}>
-            เปิดใบเสร็จ
-          </Link>
-        ) : null}
       </section>
 
       <BookingPaymentForm

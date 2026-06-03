@@ -115,6 +115,10 @@ export type ShopSettings = {
   shop_address: string | null;
   shop_phone: string | null;
   promptpay_target: string | null;
+  bank_code: string | null;
+  bank_name: string | null;
+  bank_account_no: string | null;
+  bank_account_name: string | null;
   receipt_prefix: string;
 };
 
@@ -129,6 +133,40 @@ export type BookingPayment = {
   receipt_issued_at: string | null;
   paid_at: string | null;
   note: string | null;
+};
+
+export type CustomerHistoryPet = {
+  id: string;
+  name: string;
+  species: string;
+};
+
+export type CustomerHistoryBookingItem = {
+  booking_id: string;
+  booking_no: string;
+  booking_type: BookingType;
+  status: BookingStatus;
+  payment_status: PaymentStatus;
+  start_at: string;
+  end_at: string;
+  pet_name: string;
+  room_name: string | null;
+  services_summary: string;
+  total_amount: number;
+};
+
+export type CustomerHistoryViewModel = {
+  id: string;
+  full_name: string;
+  phone: string;
+  facebook_name: string | null;
+  note: string | null;
+  pets: CustomerHistoryPet[];
+  grooming_count: number;
+  hotel_count: number;
+  total_completed_count: number;
+  last_service_at: string | null;
+  history: CustomerHistoryBookingItem[];
 };
 
 export type ReceiptViewModel = {

@@ -31,6 +31,10 @@ const DEFAULT_SHOP_SETTINGS: ShopSettings = {
   shop_address: null,
   shop_phone: null,
   promptpay_target: null,
+  bank_code: null,
+  bank_name: null,
+  bank_account_no: null,
+  bank_account_name: null,
   receipt_prefix: "RC"
 };
 
@@ -52,7 +56,7 @@ function formatBusinessDate(date = new Date()) {
 }
 
 function tlv(id: string, value: string) {
-  return `${id}${String(value.length).padStart(2, "0")}${value}`;
+  return `${id}${String(Buffer.byteLength(value, "utf8")).padStart(2, "0")}${value}`;
 }
 
 function crc16(payload: string) {
@@ -97,15 +101,109 @@ export function buildPromptPayPayload(target: string, amount: number) {
   return `${body}6304${crc16(`${body}6304`)}`;
 }
 
+export async function generatePromptPayQrForAmount(amount: number) {
+  const shop = await getShopSettingsRecord(true);
+
+  if (!shop.promptpay_target) {
+    throw new Error("PromptPay is not configured for this shop");
+  }
+
+  if (Number.isNaN(amount) || amount <= 0) {
+    throw new Error("PromptPay QR amount is invalid");
+  }
+
+  const roundedAmount = Number(amount.toFixed(2));
+  const payload = buildPromptPayPayload(shop.promptpay_target, roundedAmount);
+  const qrDataUrl = await QRCode.toDataURL(payload, { margin: 1, width: 320 });
+
+  return {
+    qrDataUrl,
+    payload,
+    amount: roundedAmount
+  };
+}
+
+function normalizeQrText(value: string | null | undefined, fallback: string, maxLength: number) {
+  const normalized = (value ?? "")
+    .normalize("NFKD")
+    .replace(/[^\x20-\x7E]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toUpperCase();
+
+  return (normalized || fallback).slice(0, maxLength);
+}
+
+function getBankAccountQrTarget(shop: Pick<ShopSettings, "bank_code" | "bank_account_no">) {
+  const bankCode = shop.bank_code?.replace(/\D/g, "") ?? "";
+  const accountNo = shop.bank_account_no?.replace(/\D/g, "") ?? "";
+  const target = `${bankCode}${accountNo}`;
+
+  if (bankCode.length !== 3 || accountNo.length < 1 || target.length > 43) {
+    throw new Error("Bank account QR target is invalid");
+  }
+
+  return target;
+}
+
+export function hasBankAccountQrSettings(shop: Pick<ShopSettings, "bank_code" | "bank_account_no" | "bank_account_name">) {
+  return Boolean(shop.bank_code?.trim() && shop.bank_account_no?.trim() && shop.bank_account_name?.trim());
+}
+
+export function buildBankAccountQrPayload(shop: Pick<ShopSettings, "bank_code" | "bank_account_no" | "bank_account_name" | "shop_name">, amount: number) {
+  if (Number.isNaN(amount) || amount <= 0) {
+    throw new Error("Bank account QR amount is invalid");
+  }
+
+  const bankAccountInfo = tlv("04", getBankAccountQrTarget(shop));
+  const amountText = tlv("54", amount.toFixed(2));
+  const merchantName = tlv("59", normalizeQrText(shop.bank_account_name ?? shop.shop_name, "MOKU PET", 25));
+  const merchantCity = tlv("60", "BANGKOK");
+  const body = [
+    tlv("00", "01"),
+    tlv("01", "12"),
+    bankAccountInfo,
+    tlv("52", "0000"),
+    tlv("53", "764"),
+    amountText,
+    tlv("58", "TH"),
+    merchantName,
+    merchantCity
+  ].join("");
+
+  return `${body}6304${crc16(`${body}6304`)}`;
+}
+
 async function getShopSettingsRecord(useAdminClient = false) {
   const supabase = useAdminClient ? createAdminClient() : await createClient();
   const { data, error } = await supabase
     .from("shop_settings")
-    .select("id, shop_name, shop_address, shop_phone, promptpay_target, receipt_prefix")
+    .select("id, shop_name, shop_address, shop_phone, promptpay_target, bank_code, bank_name, bank_account_no, bank_account_name, receipt_prefix")
     .eq("id", 1)
     .maybeSingle();
 
   if (error) {
+    if (error.code === "42703" || error.message.includes("bank_")) {
+      const { data: legacyData, error: legacyError } = await supabase
+        .from("shop_settings")
+        .select("id, shop_name, shop_address, shop_phone, promptpay_target, receipt_prefix")
+        .eq("id", 1)
+        .maybeSingle();
+
+      if (legacyError) {
+        throw new Error(legacyError.message);
+      }
+
+      if (!legacyData) {
+        return DEFAULT_SHOP_SETTINGS;
+      }
+
+      return {
+        ...DEFAULT_SHOP_SETTINGS,
+        ...legacyData
+      } as ShopSettings;
+    }
+
     throw new Error(error.message);
   }
 
@@ -179,8 +277,24 @@ export async function prepareBookingPayment(bookingId: string, options?: { useAd
     storedStatus: payment?.status ?? "pending"
   });
   const remainingAmount = Math.max(totalAmount - paidAmount, 0);
-  const promptpayPayload = shop.promptpay_target && remainingAmount > 0 ? buildPromptPayPayload(shop.promptpay_target, remainingAmount) : null;
-  const promptpayQrDataUrl = promptpayPayload ? await QRCode.toDataURL(promptpayPayload, { margin: 1, width: 320 }) : null;
+  let promptpayPayload: string | null = null;
+  let promptpayQrDataUrl: string | null = null;
+
+  if (shop.promptpay_target && remainingAmount > 0) {
+    try {
+      promptpayPayload = buildPromptPayPayload(shop.promptpay_target, remainingAmount);
+      promptpayQrDataUrl = await QRCode.toDataURL(promptpayPayload, { margin: 1, width: 320 });
+    } catch (error) {
+      console.error("Unable to generate PromptPay QR for booking payment", {
+        bookingId,
+        promptpayTarget: shop.promptpay_target,
+        remainingAmount,
+        error: error instanceof Error ? error.message : error
+      });
+      promptpayPayload = null;
+      promptpayQrDataUrl = null;
+    }
+  }
 
   return {
     bookingId: data.id,
@@ -204,6 +318,31 @@ export async function prepareBookingPayment(bookingId: string, options?: { useAd
     shop,
     promptpayPayload,
     promptpayQrDataUrl
+  };
+}
+
+export async function generateBankAccountQrForAmount(amount: number) {
+  const shop = await getShopSettingsRecord(true);
+
+  if (!hasBankAccountQrSettings(shop)) {
+    throw new Error("Bank account QR is not configured for this shop");
+  }
+
+  if (Number.isNaN(amount) || amount <= 0) {
+    throw new Error("Bank account QR amount is invalid");
+  }
+
+  const roundedAmount = Number(amount.toFixed(2));
+  const payload = buildBankAccountQrPayload(shop, roundedAmount);
+  const qrDataUrl = await QRCode.toDataURL(payload, { margin: 1, width: 320 });
+
+  return {
+    qrDataUrl,
+    payload,
+    amount: roundedAmount,
+    bankName: shop.bank_name,
+    bankAccountNo: shop.bank_account_no,
+    bankAccountName: shop.bank_account_name
   };
 }
 

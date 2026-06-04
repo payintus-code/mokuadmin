@@ -1,36 +1,40 @@
+@import url("https://fonts.googleapis.com/css2?family=Prompt:wght@400;500;600;700;800;900&display=swap");
+
 :root {
-  --bg: #f6efe6;
-  --bg-strong: #efe4d4;
-  --surface: rgba(255, 251, 246, 0.86);
-  --surface-strong: #fffaf3;
-  --card: rgba(255, 253, 249, 0.94);
-  --card-strong: #fffefb;
-  --text: #34251d;
-  --text-soft: #6f5c50;
-  --muted: #8a776a;
-  --line: rgba(123, 91, 65, 0.14);
-  --line-strong: rgba(123, 91, 65, 0.22);
-  --brand: #8c5a39;
-  --brand-strong: #70442a;
-  --brand-soft: #efe0cf;
-  --accent: #d48a49;
-  --accent-soft: #fff0dd;
-  --accent-strong: #c7742f;
-  --success: #2f8a61;
-  --success-soft: #e8f4ee;
-  --warning: #b88422;
-  --warning-soft: #fff4da;
-  --info: #7a624e;
-  --info-soft: #f4ebdf;
-  --danger: #b44d42;
-  --danger-soft: #fff0ed;
-  --shadow-sm: 0 8px 20px rgba(90, 61, 37, 0.06);
-  --shadow-md: 0 18px 48px rgba(90, 61, 37, 0.12);
-  --shadow-lg: 0 24px 60px rgba(90, 61, 37, 0.16);
-  --radius-xs: 14px;
-  --radius-sm: 18px;
-  --radius-md: 24px;
-  --radius-lg: 32px;
+  --bg: #FAF7F2;
+  --bg-strong: #F3E7D3;
+  --surface: rgba(250, 247, 242, 0.92);
+  --surface-strong: #FAF7F2;
+  --card: #FFFFFF;
+  --card-strong: #FFFFFF;
+  --cream: #F3E7D3;
+  --text: #4A2F1B;
+  --text-soft: #6B503B;
+  --muted: #8A7663;
+  --line: rgba(139, 94, 60, 0.13);
+  --line-strong: rgba(139, 94, 60, 0.24);
+  --brand: #8B5E3C;
+  --brand-strong: #4A2F1B;
+  --brand-soft: #F3E7D3;
+  --accent: #C8A27A;
+  --accent-soft: #F8EFE3;
+  --accent-strong: #8B5E3C;
+  --success: #6BA368;
+  --success-soft: #EDF6EA;
+  --warning: #D9A441;
+  --warning-soft: #FFF4D8;
+  --info: #8B5E3C;
+  --info-soft: #F3E7D3;
+  --danger: #C75C5C;
+  --danger-soft: #FBECEC;
+  --shadow-sm: 0 6px 18px rgba(74, 47, 27, 0.06);
+  --shadow-md: 0 14px 34px rgba(74, 47, 27, 0.11);
+  --shadow-lg: 0 22px 54px rgba(74, 47, 27, 0.15);
+  --radius-xs: 12px;
+  --radius-sm: 16px;
+  --radius-md: 20px;
+  --radius-lg: 24px;
+  --font-main: "Prompt", "Noto Sans Thai", system-ui, sans-serif;
 }
 
 * {
@@ -50,12 +54,9 @@ html {
 
 body {
   min-height: 100dvh;
-  background:
-    radial-gradient(circle at top left, rgba(255, 233, 204, 0.85), transparent 32%),
-    radial-gradient(circle at top right, rgba(224, 193, 162, 0.28), transparent 24%),
-    linear-gradient(180deg, #fff9f2 0%, #f6efe6 46%, #efe3d5 100%);
+  background: var(--bg);
   color: var(--text);
-  font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+  font-family: var(--font-main);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
   overflow-x: hidden;
@@ -110,13 +111,7 @@ textarea:focus-visible {
 }
 
 .app-shell-glow {
-  position: fixed;
-  z-index: 0;
-  width: 32rem;
-  height: 32rem;
-  border-radius: 999px;
-  filter: blur(40px);
-  pointer-events: none;
+  display: none;
 }
 
 .app-shell-glow-left {
@@ -136,7 +131,7 @@ textarea:focus-visible {
   z-index: 1;
   width: min(100%, 1180px);
   margin: 0 auto;
-  padding: 76px 16px 32px;
+  padding: 72px 16px 40px;
 }
 
 .stack {
@@ -152,11 +147,10 @@ textarea:focus-visible {
 .panel,
 .empty-state,
 .metric-card {
-  background: linear-gradient(180deg, var(--card) 0%, rgba(255, 250, 244, 0.96) 100%);
+  background: var(--card);
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-sm);
-  backdrop-filter: blur(10px);
 }
 
 .card,
@@ -165,7 +159,7 @@ textarea:focus-visible {
 }
 
 .panel-muted {
-  background: linear-gradient(180deg, rgba(248, 241, 232, 0.88) 0%, rgba(255, 248, 240, 0.95) 100%);
+  background: var(--accent-soft);
 }
 
 .page-loading {
@@ -232,7 +226,7 @@ textarea:focus-visible {
   margin: 0;
   font-size: 1.08rem;
   font-weight: 800;
-  letter-spacing: -0.02em;
+  letter-spacing: 0;
 }
 
 .section-kicker {
@@ -269,7 +263,7 @@ textarea:focus-visible {
   justify-content: center;
   gap: 10px;
   width: 100%;
-  min-height: 50px;
+  min-height: 52px;
   border: 1px solid transparent;
   border-radius: 18px;
   padding: 12px 18px;
@@ -297,6 +291,7 @@ textarea:focus-visible {
 .btn.is-pending,
 .tap-row-link.is-pending,
 .quick-link-card.is-pending,
+.floating-booking-action.is-pending,
 .menu-link.is-pending,
 .mobile-tabbar-link.is-pending,
 .schedule-list-link.is-pending,
@@ -308,29 +303,31 @@ textarea:focus-visible {
 
 .btn.is-pending,
 .tap-row-link.is-pending,
-.quick-link-card.is-pending {
+.quick-link-card.is-pending,
+.floating-booking-action.is-pending {
   transform: translateY(0);
   box-shadow: 0 0 0 3px rgba(212, 138, 73, 0.14);
 }
 
 .btn-primary {
-  background: linear-gradient(180deg, var(--accent) 0%, var(--accent-strong) 100%);
+  background: var(--brand);
   color: white;
-  box-shadow: 0 12px 24px rgba(199, 116, 47, 0.22);
+  box-shadow: 0 12px 22px rgba(139, 94, 60, 0.22);
 }
 
 .btn-primary:hover {
-  box-shadow: 0 16px 26px rgba(199, 116, 47, 0.28);
+  background: var(--brand-strong);
+  box-shadow: 0 16px 28px rgba(74, 47, 27, 0.24);
 }
 
 .btn-secondary {
-  background: rgba(255, 248, 241, 0.9);
+  background: var(--accent-soft);
   color: var(--brand-strong);
   border-color: rgba(140, 90, 57, 0.14);
 }
 
 .btn-secondary:hover {
-  background: rgba(255, 243, 228, 0.98);
+  background: var(--cream);
   border-color: rgba(140, 90, 57, 0.22);
 }
 
@@ -345,7 +342,7 @@ textarea:focus-visible {
 }
 
 .btn-ghost {
-  background: transparent;
+  background: rgba(255, 255, 255, 0.72);
   color: var(--brand-strong);
   border-color: rgba(140, 90, 57, 0.14);
 }
@@ -371,18 +368,18 @@ textarea:focus-visible {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  min-height: 46px;
-  padding: 11px 14px;
+  min-height: 48px;
+  padding: 12px 14px;
   border: 1px solid rgba(123, 91, 65, 0.12);
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.62);
+  background: var(--accent-soft);
   color: var(--brand-strong);
   font-size: 0.9rem;
   font-weight: 800;
 }
 
 .tap-row-link:hover {
-  background: rgba(255, 248, 240, 0.96);
+  background: var(--cream);
   border-color: rgba(140, 90, 57, 0.2);
 }
 
@@ -390,13 +387,13 @@ textarea:focus-visible {
 .select,
 .textarea {
   width: 100%;
-  min-height: 50px;
+  min-height: 52px;
   border: 1px solid rgba(123, 91, 65, 0.18);
-  border-radius: 18px;
+  border-radius: 16px;
   padding: 13px 15px;
-  background: rgba(255, 255, 255, 0.96);
+  background: #FFFFFF;
   color: var(--text);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  box-shadow: 0 1px 0 rgba(74, 47, 27, 0.02);
 }
 
 .date-input-row {
@@ -414,16 +411,16 @@ textarea:focus-visible {
   flex: 0 0 auto;
   width: 50px;
   min-width: 50px;
-  min-height: 50px;
+  min-height: 52px;
   border: 1px solid var(--line-strong);
-  border-radius: 18px;
-  background: rgba(255, 248, 241, 0.9);
+  border-radius: 16px;
+  background: var(--accent-soft);
   color: var(--brand-strong);
   cursor: pointer;
 }
 
 .date-picker-button:hover {
-  background: rgba(255, 243, 228, 0.98);
+  background: var(--cream);
   border-color: rgba(140, 90, 57, 0.22);
 }
 
@@ -437,7 +434,7 @@ textarea:focus-visible {
 
 .input::placeholder,
 .textarea::placeholder {
-  color: #ad9c90;
+  color: #A59280;
 }
 
 .input:disabled,
@@ -471,8 +468,8 @@ textarea:focus-visible {
   gap: 16px;
   padding: 18px;
   border: 1px solid rgba(123, 91, 65, 0.12);
-  border-radius: 26px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.72) 0%, rgba(253, 247, 239, 0.95) 100%);
+  border-radius: var(--radius-lg);
+  background: #FFFFFF;
 }
 
 .form-section-title {
@@ -575,10 +572,10 @@ textarea:focus-visible {
 }
 
 .topbar-title {
-  font-family: Georgia, "Times New Roman", serif;
+  font-family: var(--font-main);
   font-size: 1.18rem;
-  font-weight: 700;
-  letter-spacing: -0.02em;
+  font-weight: 800;
+  letter-spacing: 0;
 }
 
 .topbar-subtitle {
@@ -599,21 +596,15 @@ textarea:focus-visible {
 .page-header {
   position: relative;
   overflow: hidden;
-  padding: 22px;
+  padding: 18px;
   border-radius: var(--radius-lg);
-  background:
-    radial-gradient(circle at top right, rgba(255, 235, 210, 0.8), transparent 26%),
-    linear-gradient(135deg, rgba(255, 250, 244, 0.96) 0%, rgba(244, 234, 220, 0.96) 52%, rgba(239, 224, 207, 0.92) 100%);
+  background: var(--card);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-sm);
 }
 
 .page-header::after {
-  content: "";
-  position: absolute;
-  inset: auto -10% -42% auto;
-  width: 180px;
-  height: 180px;
-  border-radius: 999px;
-  background: rgba(212, 138, 73, 0.12);
+  display: none;
 }
 
 .page-header-grid {
@@ -621,13 +612,13 @@ textarea:focus-visible {
   z-index: 1;
   display: flex;
   justify-content: space-between;
-  gap: 18px;
-  align-items: flex-end;
+  gap: 14px;
+  align-items: center;
 }
 
 .page-header-main {
   display: grid;
-  gap: 12px;
+  gap: 10px;
 }
 
 .page-header-eyebrow {
@@ -635,29 +626,31 @@ textarea:focus-visible {
   align-items: center;
   gap: 8px;
   width: fit-content;
-  padding: 6px 12px;
+  padding: 5px 10px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.68);
+  background: var(--accent-soft);
   color: var(--brand-strong);
-  font-size: 0.76rem;
+  font-size: 0.72rem;
   font-weight: 800;
-  letter-spacing: 0.08em;
+  letter-spacing: 0;
   text-transform: uppercase;
 }
 
 .page-header-title {
   margin: 0;
-  font-family: Georgia, "Times New Roman", serif;
-  font-size: clamp(1.9rem, 4vw, 2.7rem);
-  line-height: 0.95;
-  letter-spacing: -0.04em;
+  font-family: var(--font-main);
+  font-size: 1.65rem;
+  line-height: 1.18;
+  letter-spacing: 0;
+  font-weight: 800;
 }
 
 .page-header-subtitle {
   max-width: 48ch;
   margin: 0;
   color: var(--text-soft);
-  font-size: 0.98rem;
+  font-size: 0.92rem;
+  line-height: 1.55;
 }
 
 .page-header-action {
@@ -676,10 +669,11 @@ textarea:focus-visible {
 
 .frontdesk-hero-title {
   margin: 0;
-  font-family: Georgia, "Times New Roman", serif;
-  font-size: clamp(1.75rem, 4vw, 2.5rem);
-  line-height: 0.95;
-  letter-spacing: -0.04em;
+  font-family: var(--font-main);
+  font-size: 1.82rem;
+  line-height: 1.16;
+  letter-spacing: 0;
+  font-weight: 800;
 }
 
 .frontdesk-hero-subtitle {
@@ -780,10 +774,10 @@ textarea:focus-visible {
 }
 
 .metric-card {
-  padding: 18px;
-  min-height: 148px;
+  padding: 16px;
+  min-height: 132px;
   display: grid;
-  gap: 12px;
+  gap: 10px;
   align-content: space-between;
 }
 
@@ -806,20 +800,22 @@ textarea:focus-visible {
   width: 40px;
   height: 40px;
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.72);
+  background: var(--accent-soft);
   color: var(--brand-strong);
 }
 
 .metric-card-value {
-  font-size: clamp(1.7rem, 3vw, 2.4rem);
+  font-size: 2rem;
   line-height: 1;
-  letter-spacing: -0.04em;
+  letter-spacing: 0;
+  font-weight: 800;
 }
 
 .metric-card-detail {
   margin: 0;
   color: var(--text-soft);
-  font-size: 0.9rem;
+  font-size: 0.86rem;
+  line-height: 1.45;
 }
 
 .metric-card-success .metric-card-value {
@@ -827,7 +823,7 @@ textarea:focus-visible {
 }
 
 .metric-card-warning .metric-card-value {
-  color: var(--accent-strong);
+  color: var(--warning);
 }
 
 .metric-card-danger .metric-card-value {
@@ -843,16 +839,17 @@ textarea:focus-visible {
 .quick-link-card {
   display: grid;
   gap: 10px;
-  padding: 18px;
+  padding: 16px;
   border: 1px solid rgba(123, 91, 65, 0.12);
-  border-radius: 24px;
-  background: rgba(255, 255, 255, 0.72);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  border-radius: 20px;
+  background: #FFFFFF;
+  box-shadow: var(--shadow-sm);
 }
 
 .quick-link-card:hover {
   transform: translateY(-2px);
-  box-shadow: var(--shadow-sm);
+  border-color: var(--line-strong);
+  box-shadow: var(--shadow-md);
 }
 
 .quick-link-icon {
@@ -860,7 +857,7 @@ textarea:focus-visible {
   place-items: center;
   width: 42px;
   height: 42px;
-  border-radius: 16px;
+  border-radius: 14px;
   background: var(--accent-soft);
   color: var(--brand-strong);
 }
@@ -931,7 +928,7 @@ textarea:focus-visible {
 .state-note {
   padding: 14px 16px;
   border-radius: 18px;
-  background: rgba(255, 248, 240, 0.88);
+  background: var(--accent-soft);
   color: var(--text-soft);
   border: 1px solid rgba(123, 91, 65, 0.1);
 }
@@ -960,7 +957,7 @@ textarea:focus-visible {
   padding: 14px;
   border: 1px solid rgba(123, 91, 65, 0.12);
   border-radius: 22px;
-  background: rgba(255, 251, 246, 0.96);
+  background: #FFFFFF;
   box-shadow: var(--shadow-md);
 }
 
@@ -1052,7 +1049,7 @@ textarea:focus-visible {
   padding: 9px 12px;
   border: 1px solid rgba(123, 91, 65, 0.14);
   border-radius: 16px;
-  background: rgba(255, 248, 241, 0.9);
+  background: var(--accent-soft);
   color: var(--brand-strong);
   font-size: 0.88rem;
   font-weight: 800;
@@ -1074,8 +1071,38 @@ textarea:focus-visible {
   padding: 12px;
   border: 1px solid rgba(123, 91, 65, 0.12);
   border-radius: 18px;
-  background: rgba(255, 252, 247, 0.98);
+  background: #FFFFFF;
   box-shadow: var(--shadow-lg);
+}
+
+.floating-booking-action {
+  position: fixed;
+  right: max(18px, env(safe-area-inset-right));
+  bottom: max(22px, env(safe-area-inset-bottom));
+  z-index: 32;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 56px;
+  padding: 0 18px;
+  border: 1px solid rgba(255, 255, 255, 0.32);
+  border-radius: 999px;
+  background: var(--brand);
+  color: #FFFFFF;
+  font-size: 0.95rem;
+  font-weight: 800;
+  box-shadow: 0 18px 34px rgba(74, 47, 27, 0.24);
+  cursor: pointer;
+}
+
+.floating-booking-action:hover {
+  background: var(--brand-strong);
+  transform: translateY(-2px);
+}
+
+.floating-booking-action:active {
+  transform: translateY(0);
 }
 
 .empty-state {
@@ -1129,10 +1156,9 @@ textarea:focus-visible {
   height: 52px;
   border: 1px solid rgba(123, 91, 65, 0.14);
   border-radius: 18px;
-  background: rgba(255, 252, 247, 0.92);
+  background: #FFFFFF;
   color: var(--brand-strong);
   box-shadow: var(--shadow-sm);
-  backdrop-filter: blur(18px);
   cursor: pointer;
 }
 
@@ -1178,8 +1204,8 @@ textarea:focus-visible {
   inset: 0;
   z-index: 18;
   border: 0;
-  background: rgba(52, 37, 29, 0.18);
-  backdrop-filter: blur(3px);
+  background: rgba(74, 47, 27, 0.22);
+  backdrop-filter: blur(2px);
   cursor: pointer;
   opacity: 0;
   pointer-events: none;
@@ -1199,10 +1225,9 @@ textarea:focus-visible {
   gap: 16px;
   padding: 18px;
   border: 1px solid rgba(123, 91, 65, 0.12);
-  border-radius: 28px;
-  background: rgba(255, 252, 247, 0.94);
+  border-radius: var(--radius-lg);
+  background: #FFFFFF;
   box-shadow: var(--shadow-lg);
-  backdrop-filter: blur(18px);
   opacity: 0;
   pointer-events: none;
   visibility: hidden;
@@ -1244,10 +1269,10 @@ textarea:focus-visible {
 
 .menu-panel-title {
   margin-top: 6px;
-  font-family: Georgia, "Times New Roman", serif;
+  font-family: var(--font-main);
   font-size: 1.28rem;
-  font-weight: 700;
-  letter-spacing: -0.03em;
+  font-weight: 800;
+  letter-spacing: 0;
 }
 
 .menu-panel-links {
@@ -1262,21 +1287,21 @@ textarea:focus-visible {
   min-height: 54px;
   padding: 12px 14px;
   border: 1px solid rgba(123, 91, 65, 0.12);
-  border-radius: 20px;
-  background: rgba(255, 255, 255, 0.78);
+  border-radius: 18px;
+  background: #FFFFFF;
   color: var(--text-soft);
   font-weight: 800;
 }
 
 .menu-link:hover {
   transform: translateY(-1px);
-  background: rgba(255, 248, 240, 0.98);
+  background: var(--accent-soft);
   color: var(--brand-strong);
   box-shadow: var(--shadow-sm);
 }
 
 .menu-link-active {
-  background: linear-gradient(180deg, rgba(255, 238, 217, 0.96) 0%, rgba(244, 220, 191, 0.96) 100%);
+  background: var(--accent-soft);
   color: var(--brand-strong);
   border-color: rgba(140, 90, 57, 0.14);
   box-shadow: inset 0 0 0 1px rgba(140, 90, 57, 0.08);
@@ -1297,9 +1322,9 @@ textarea:focus-visible {
 
 .schedule-month-title {
   text-align: center;
-  font-family: Georgia, "Times New Roman", serif;
+  font-family: var(--font-main);
   font-size: 1.3rem;
-  font-weight: 700;
+  font-weight: 800;
   text-transform: capitalize;
 }
 
@@ -1370,9 +1395,9 @@ textarea:focus-visible {
 }
 
 .schedule-day-selected {
-  border-color: rgba(212, 138, 73, 0.45);
+  border-color: rgba(139, 94, 60, 0.32);
   box-shadow:
-    0 0 0 3px rgba(255, 238, 217, 0.95),
+    0 0 0 3px rgba(243, 231, 211, 0.95),
     0 12px 24px rgba(123, 91, 65, 0.08);
 }
 
@@ -1461,8 +1486,8 @@ textarea:focus-visible {
 .schedule-list-pet,
 .schedule-list-time {
   margin: 4px 0 0;
-  color: var(--ink);
-  font-size: clamp(1.08rem, 4vw, 1.28rem);
+  color: var(--text);
+  font-size: 1.12rem;
   line-height: 1.25;
   overflow-wrap: anywhere;
 }
@@ -1510,6 +1535,7 @@ textarea:focus-visible {
 
 .booking-form-shell {
   gap: 20px;
+  padding-bottom: calc(220px + env(safe-area-inset-bottom));
 }
 
 .booking-form-main {
@@ -1518,9 +1544,12 @@ textarea:focus-visible {
 }
 
 .booking-form-action {
-  position: sticky;
-  bottom: 96px;
-  z-index: 3;
+  position: fixed;
+  left: 50%;
+  bottom: calc(88px + env(safe-area-inset-bottom));
+  z-index: 35;
+  width: min(calc(100vw - 24px), 1120px);
+  transform: translateX(-50%);
 }
 
 .booking-type-grid {
@@ -1882,7 +1911,7 @@ textarea:focus-visible {
 }
 
 .room-code {
-  font-family: Georgia, "Times New Roman", serif;
+  font-family: var(--font-main);
   font-size: 1.34rem;
   line-height: 1;
 }
@@ -1936,7 +1965,7 @@ textarea:focus-visible {
 }
 
 .finance-report-mode-tab-active {
-  background: linear-gradient(180deg, rgba(255, 238, 217, 0.96) 0%, rgba(244, 220, 191, 0.96) 100%);
+  background: var(--accent-soft);
   color: var(--brand-strong);
   border-color: rgba(140, 90, 57, 0.16);
 }
@@ -2030,7 +2059,8 @@ textarea:focus-visible {
   }
 
   .booking-form-action {
-    position: static;
+    bottom: 24px;
+    width: min(calc(100vw - 48px), 1120px);
   }
 
   .booking-toolbar-actions {
@@ -2090,7 +2120,7 @@ textarea:focus-visible {
 
 @media (max-width: 767px) {
   body {
-    background: linear-gradient(180deg, #fffaf4 0%, #f7efe5 58%, #efe4d6 100%);
+    background: var(--bg);
   }
 
   .app-shell-glow {
@@ -2099,7 +2129,7 @@ textarea:focus-visible {
 
   .shell {
     width: 100%;
-    padding: 16px clamp(12px, 4vw, 18px) calc(108px + env(safe-area-inset-bottom));
+    padding: 14px clamp(12px, 4vw, 18px) calc(158px + env(safe-area-inset-bottom));
   }
 
   .shell > .stack {
@@ -2115,7 +2145,6 @@ textarea:focus-visible {
   .empty-state,
   .metric-card {
     border-radius: 20px;
-    backdrop-filter: none;
   }
 
   .card,
@@ -2150,12 +2179,12 @@ textarea:focus-visible {
   }
 
   .page-header {
-    padding: 18px;
-    border-radius: 22px;
+    padding: 16px;
+    border-radius: 20px;
   }
 
   .page-header-grid {
-    gap: 16px;
+    gap: 14px;
     align-items: stretch;
   }
 
@@ -2166,13 +2195,13 @@ textarea:focus-visible {
   .page-header-eyebrow {
     max-width: 100%;
     font-size: 0.68rem;
-    letter-spacing: 0.04em;
+    letter-spacing: 0;
   }
 
   .page-header-title {
-    font-size: 1.75rem;
-    line-height: 1.04;
-    letter-spacing: -0.02em;
+    font-size: 1.42rem;
+    line-height: 1.22;
+    letter-spacing: 0;
     overflow-wrap: anywhere;
   }
 
@@ -2192,9 +2221,9 @@ textarea:focus-visible {
   }
 
   .frontdesk-hero-title {
-    font-size: 1.78rem;
-    line-height: 1.03;
-    letter-spacing: -0.02em;
+    font-size: 1.48rem;
+    line-height: 1.22;
+    letter-spacing: 0;
   }
 
   .frontdesk-hero-actions {
@@ -2229,8 +2258,8 @@ textarea:focus-visible {
   }
 
   .metric-card-value {
-    font-size: clamp(1.38rem, 9vw, 1.9rem);
-    letter-spacing: -0.02em;
+    font-size: 1.58rem;
+    letter-spacing: 0;
     overflow-wrap: anywhere;
   }
 
@@ -2360,7 +2389,8 @@ textarea:focus-visible {
   }
 
   .booking-form-action {
-    bottom: calc(100px + env(safe-area-inset-bottom));
+    bottom: calc(84px + env(safe-area-inset-bottom));
+    width: min(calc(100vw - 20px), 1120px);
   }
 
   .booking-review-modal-overlay {
@@ -2410,6 +2440,8 @@ textarea:focus-visible {
   .schedule-mobile-strip {
     display: grid;
     gap: 10px;
+    position: relative;
+    z-index: 1;
   }
 
   .schedule-mobile-days {
@@ -2420,6 +2452,10 @@ textarea:focus-visible {
     overflow-x: auto;
     padding-bottom: 4px;
     scroll-snap-type: x proximity;
+    position: relative;
+    z-index: 1;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-x;
   }
 
   .schedule-mobile-day {
@@ -2432,10 +2468,13 @@ textarea:focus-visible {
     background: rgba(255, 255, 255, 0.78);
     text-align: center;
     scroll-snap-align: start;
+    position: relative;
+    z-index: 2;
+    touch-action: manipulation;
   }
 
   .schedule-mobile-day-selected {
-    background: linear-gradient(180deg, rgba(255, 238, 217, 0.96) 0%, rgba(244, 220, 191, 0.96) 100%);
+    background: var(--accent-soft);
     border-color: rgba(140, 90, 57, 0.16);
   }
 
@@ -2482,6 +2521,15 @@ textarea:focus-visible {
     padding-bottom: calc(88px + env(safe-area-inset-bottom));
   }
 
+  .floating-booking-action {
+    right: max(16px, env(safe-area-inset-right));
+    bottom: calc(94px + env(safe-area-inset-bottom));
+    min-height: 54px;
+    padding: 0 16px;
+    border-radius: 20px;
+    box-shadow: 0 14px 28px rgba(74, 47, 27, 0.22);
+  }
+
   .desktop-menu-toggle {
     display: none;
   }
@@ -2494,24 +2542,24 @@ textarea:focus-visible {
     z-index: 30;
     display: grid;
     grid-template-columns: repeat(5, minmax(0, 1fr));
-    gap: 4px;
+    gap: 5px;
     padding: 8px;
     border: 1px solid rgba(123, 91, 65, 0.14);
-    border-radius: 24px;
-    background: rgba(255, 252, 247, 0.96);
-    box-shadow: var(--shadow-lg);
+    border-radius: 22px;
+    background: #FFFFFF;
+    box-shadow: 0 16px 38px rgba(74, 47, 27, 0.15);
   }
 
   .mobile-tabbar-link {
     display: grid;
     place-items: center;
-    gap: 4px;
-    min-height: 56px;
+    gap: 5px;
+    min-height: 58px;
     border: 1px solid transparent;
-    border-radius: 18px;
+    border-radius: 16px;
     background: transparent;
     color: var(--text-soft);
-    font-size: 0.68rem;
+    font-size: 0.66rem;
     font-weight: 800;
     line-height: 1.15;
     text-align: center;
@@ -2532,7 +2580,7 @@ textarea:focus-visible {
 
   .menu-checkbox:checked ~ .mobile-tabbar .mobile-tabbar-button,
   .mobile-tabbar-link-active {
-    background: linear-gradient(180deg, rgba(255, 238, 217, 0.96) 0%, rgba(244, 220, 191, 0.96) 100%);
+    background: var(--accent-soft);
     color: var(--brand-strong);
     border-color: rgba(140, 90, 57, 0.13);
   }
@@ -2544,13 +2592,13 @@ textarea:focus-visible {
   .menu-panel {
     top: auto;
     right: 10px;
-    bottom: calc(88px + env(safe-area-inset-bottom));
+    bottom: calc(90px + env(safe-area-inset-bottom));
     left: 10px;
     width: auto;
     max-height: min(68dvh, 520px);
     overflow: auto;
     padding: 16px;
-    border-radius: 24px;
+    border-radius: 22px;
     transform: translateY(14px) scale(0.98);
   }
 
@@ -2576,6 +2624,7 @@ textarea:focus-visible {
   .menu-panel,
   .menu-checkbox,
   .mobile-tabbar,
+  .floating-booking-action,
   .sticky-form-actions,
   .mobile-action-sheet,
   .btn,

@@ -94,9 +94,9 @@ export default async function CustomersPage({
           <button className="btn btn-primary" type="submit">
             ค้นหา
           </button>
-          <a className="btn btn-secondary" href="/customers">
+          <PendingLink className="btn btn-secondary" href="/customers">
             ล้างคำค้น
-          </a>
+          </PendingLink>
         </div>
       </form>
 
@@ -170,9 +170,9 @@ export default async function CustomersPage({
             title="ไม่พบข้อมูลที่ค้นหา"
             description="ลองค้นหาด้วยชื่อลูกค้า ชื่อสัตว์เลี้ยง หรือเบอร์โทรคำอื่น"
             action={
-              <a className="btn btn-secondary" href="/customers">
+              <PendingLink className="btn btn-secondary" href="/customers">
                 กลับไปดูทั้งหมด
-              </a>
+              </PendingLink>
             }
           />
         )}

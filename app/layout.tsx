@@ -3,6 +3,7 @@ import "./globals.css";
 import { getCurrentAppUser } from "@/lib/auth";
 import { BottomNav } from "@/components/ui/bottom-nav";
 import { FloatingBookingAction } from "@/components/ui/floating-booking-action";
+import { ToastProvider } from "@/components/ui/toast-provider";
 
 export const metadata: Metadata = {
   title: "Moku Pet Grooming",
@@ -22,17 +23,19 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
   return (
     <html lang="th">
       <body>
-        <div className="app-shell">
-          <div className="app-shell-glow app-shell-glow-left" aria-hidden="true" />
-          <div className="app-shell-glow app-shell-glow-right" aria-hidden="true" />
-          <div className="shell">{children}</div>
-          {currentUser ? (
-            <>
-              <FloatingBookingAction />
-              <BottomNav canViewFinance={currentUser.role === "admin"} />
-            </>
-          ) : null}
-        </div>
+        <ToastProvider>
+          <div className="app-shell">
+            <div className="app-shell-glow app-shell-glow-left" aria-hidden="true" />
+            <div className="app-shell-glow app-shell-glow-right" aria-hidden="true" />
+            <div className="shell">{children}</div>
+            {currentUser ? (
+              <>
+                <FloatingBookingAction />
+                <BottomNav canViewFinance={currentUser.role === "admin"} />
+              </>
+            ) : null}
+          </div>
+        </ToastProvider>
       </body>
     </html>
   );

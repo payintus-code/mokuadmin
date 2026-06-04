@@ -6,6 +6,8 @@ import { useState, type FormEvent } from "react";
 import { useFormStatus } from "react-dom";
 import { createPet } from "@/app/actions/pets";
 import { StickyFormActions } from "@/components/ui/sticky-form-actions";
+import { ToastActionForm } from "@/components/ui/toast-action-form";
+import { useToast } from "@/components/ui/toast-provider";
 import {
   CUSTOMER_PETS_DRAFT_STORAGE_KEY,
   type CustomerDraftPet
@@ -39,6 +41,7 @@ const EMPTY_DRAFT_PET: CustomerDraftPet = {
 
 export function PetForm({ customers, draftMode = false, returnTo = "/customers/new" }: PetFormProps) {
   const router = useRouter();
+  const { showToast } = useToast();
   const [draftPet, setDraftPet] = useState<CustomerDraftPet>(EMPTY_DRAFT_PET);
   const [errorMessage, setErrorMessage] = useState("");
   const [isSavingDraft, setIsSavingDraft] = useState(false);
@@ -86,6 +89,7 @@ export function PetForm({ customers, draftMode = false, returnTo = "/customers/n
         ])
       );
 
+      showToast();
       router.push(returnTo);
       router.refresh();
     } catch {
@@ -192,7 +196,7 @@ export function PetForm({ customers, draftMode = false, returnTo = "/customers/n
   }
 
   return (
-    <form action={createPet} className="card stack">
+    <ToastActionForm action={createPet} className="card stack">
       <label className="label">
         เจ้าของ
         <select className="select" name="customerId" required>
@@ -242,6 +246,6 @@ export function PetForm({ customers, draftMode = false, returnTo = "/customers/n
       <StickyFormActions title="พร้อมบันทึกสัตว์เลี้ยง" hint="ตรวจเจ้าของและชื่อสัตว์เลี้ยงก่อนบันทึก">
         <SubmitButton />
       </StickyFormActions>
-    </form>
+    </ToastActionForm>
   );
 }

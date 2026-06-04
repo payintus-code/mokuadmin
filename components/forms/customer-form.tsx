@@ -3,6 +3,7 @@
 import { useEffect, useState, useTransition, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { createCustomer } from "@/app/actions/customers";
+import { useToast } from "@/components/ui/toast-provider";
 import {
   CUSTOMER_DRAFT_STORAGE_KEY,
   CUSTOMER_PETS_DRAFT_STORAGE_KEY,
@@ -80,6 +81,7 @@ function readPetsFromStorage(): CustomerDraftPet[] {
 
 export function CustomerForm() {
   const router = useRouter();
+  const { showToast } = useToast();
   const [isPending, startTransition] = useTransition();
   const [draft, setDraft] = useState<CustomerDraftValues>(readDraftFromStorage);
   const [pets, setPets] = useState<CustomerDraftPet[]>(readPetsFromStorage);
@@ -129,6 +131,7 @@ export function CustomerForm() {
           window.sessionStorage.removeItem(CUSTOMER_PETS_DRAFT_STORAGE_KEY);
           setDraft(EMPTY_CUSTOMER_DRAFT);
           setPets([]);
+          showToast();
           router.push("/customers");
           router.refresh();
         } catch (error) {

@@ -2,6 +2,7 @@ import { completeBooking, deleteBooking } from "@/app/actions/bookings";
 import { DeleteButton } from "@/components/forms/delete-button";
 import { PaymentStatusBadge } from "@/components/ui/payment-status-badge";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { ToastActionForm } from "@/components/ui/toast-action-form";
 import { formatBaht, formatTime } from "@/lib/format";
 import Link from "next/link";
 import type { DailyScheduleItem } from "@/types/database";
@@ -56,7 +57,7 @@ export function ScheduleCard({ item }: { item: DailyScheduleItem }) {
 
         <div className="stack">
           {item.status !== "done" && item.status !== "cancelled" ? (
-            <form action={completeBooking} className="stack">
+            <ToastActionForm action={completeBooking} className="stack">
               <input type="hidden" name="bookingId" value={item.booking_id} />
               <label className="label">
                 ยอดปิดคิว
@@ -73,7 +74,7 @@ export function ScheduleCard({ item }: { item: DailyScheduleItem }) {
               <button className="btn btn-primary" type="submit">
                 ปิดคิวและบันทึกยอด
               </button>
-            </form>
+            </ToastActionForm>
           ) : (
             <div />
           )}

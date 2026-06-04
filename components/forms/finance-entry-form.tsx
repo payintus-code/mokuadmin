@@ -5,6 +5,7 @@ import { useState } from "react";
 import { useFormStatus } from "react-dom";
 import { createCashTransaction } from "@/app/actions/finance";
 import { StickyFormActions } from "@/components/ui/sticky-form-actions";
+import { ToastActionForm } from "@/components/ui/toast-action-form";
 import type { Customer } from "@/types/database";
 
 function SubmitButton() {
@@ -54,7 +55,7 @@ export function FinanceEntryForm({
   }
 
   return (
-    <form action={createCashTransaction} className="panel stack">
+    <ToastActionForm action={createCashTransaction} className="panel stack">
       <details className="finance-entry-collapsible stack" open={initialType === "expense"}>
         <summary className="finance-entry-summary">
           <div>
@@ -158,6 +159,6 @@ export function FinanceEntryForm({
       <StickyFormActions title="พร้อมบันทึกรายการ" hint="ตรวจวันที่และจำนวนเงินก่อนกดบันทึก">
         <SubmitButton />
       </StickyFormActions>
-    </form>
+    </ToastActionForm>
   );
 }

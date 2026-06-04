@@ -1,11 +1,13 @@
 "use client";
 
 import Link from "next/link";
+import { Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useFormStatus } from "react-dom";
 import { checkGroomingAvailability, createBooking, getAvailableRooms } from "@/app/actions/bookings";
 import { getCustomerPets, searchCustomers } from "@/app/actions/lookups";
+import { useToast } from "@/components/ui/toast-provider";
 import { validateHotelStayDates, validatePaymentDraft } from "@/lib/booking-draft";
 import {
   normalizePhone,
@@ -354,6 +356,7 @@ function ReviewButton({
 
 export function BookingForm({ initialCustomers, rooms, services }: BookingFormProps) {
   const router = useRouter();
+  const { showToast } = useToast();
   const defaults = useMemo(() => buildDefaultDateRange(), []);
   const [customers, setCustomers] = useState<Customer[]>(initialCustomers);
   const [pets, setPets] = useState<Pet[]>([]);
@@ -556,6 +559,16 @@ export function BookingForm({ initialCustomers, rooms, services }: BookingFormPr
 
   const isGrooming = bookingType === "grooming";
   const isHotel = bookingType === "hotel";
+  const canAddSecondaryPet = Boolean(resolvedPrimaryPetId && availableSecondaryPets.length);
+
+  useEffect(() => {
+    if (!showSecondaryPet || canAddSecondaryPet) {
+      return;
+    }
+
+    setShowSecondaryPet(false);
+    setSecondaryPetId("");
+  }, [canAddSecondaryPet, showSecondaryPet]);
 
   const effectiveEndAt = useMemo(() => {
     if (!isGrooming) {
@@ -886,6 +899,7 @@ export function BookingForm({ initialCustomers, rooms, services }: BookingFormPr
       await createBooking(formData);
       resetFormState();
       setFormSuccess("บันทึกการจองเรียบร้อยแล้ว");
+      showToast();
       router.refresh();
     } catch (error) {
       setFormError(error instanceof Error ? error.message : "ไม่สามารถบันทึกการจองได้");
@@ -1176,6 +1190,7 @@ export function BookingForm({ initialCustomers, rooms, services }: BookingFormPr
                     setCustomerId(event.target.value);
                     setPrimaryPetId("");
                     setSecondaryPetId("");
+                    setShowSecondaryPet(false);
                   }}
                   required
                 >
@@ -1190,26 +1205,73 @@ export function BookingForm({ initialCustomers, rooms, services }: BookingFormPr
                 </select>
               </label>
 
-              <label className="label">
-                สัตว์เลี้ยง
+              <div className="booking-pet-picker">
+                <label className="label">
+                  สัตว์เลี้ยง
+                  <select
+                    className="select"
+                    name="petId"
+                    value={resolvedPrimaryPetId}
+                    onChange={(event) => {
+                      setPrimaryPetId(event.target.value);
+                      setSecondaryPetId("");
+                      setShowSecondaryPet(false);
+                    }}
+                    required
+                  >
+                    <option value="">
+                      {petLookupStatus === "loading" ? "กำลังโหลดสัตว์เลี้ยง..." : resolvedCustomerId ? "เลือกสัตว์เลี้ยง" : "เลือกลูกค้าก่อน"}
+                    </option>
+                    {availablePrimaryPets.map((pet) => (
+                      <option key={pet.id} value={pet.id}>
+                        {pet.name} ({getSpeciesLabel(pet.species)})
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <button
+                  className="booking-add-pet-button"
+                  type="button"
+                  aria-expanded={showSecondaryPet}
+                  aria-label={showSecondaryPet ? "ซ่อนสัตว์เลี้ยงตัวที่ 2" : "เพิ่มสัตว์เลี้ยงลงคิว"}
+                  title={showSecondaryPet ? "ซ่อนสัตว์เลี้ยงตัวที่ 2" : "เพิ่มสัตว์เลี้ยงลงคิว"}
+                  onClick={() => {
+                    setShowSecondaryPet((open) => {
+                      if (open) {
+                        setSecondaryPetId("");
+                      }
+
+                      return !open;
+                    });
+                  }}
+                  disabled={!canAddSecondaryPet}
+                >
+                  <Plus size={20} strokeWidth={2.7} />
+                </button>
+              </div>
+            </div>
+
+            {showSecondaryPet ? (
+              <label className="label booking-secondary-pet-field">
+                สัตว์เลี้ยงตัวที่ 2
                 <select
                   className="select"
-                  name="petId"
-                  value={resolvedPrimaryPetId}
-                  onChange={(event) => setPrimaryPetId(event.target.value)}
-                  required
+                  name="secondaryPetId"
+                  value={resolvedSecondaryPetId}
+                  onChange={(event) => setSecondaryPetId(event.target.value)}
                 >
-                  <option value="">
-                    {petLookupStatus === "loading" ? "กำลังโหลดสัตว์เลี้ยง..." : resolvedCustomerId ? "เลือกสัตว์เลี้ยง" : "เลือกลูกค้าก่อน"}
-                  </option>
-                  {availablePrimaryPets.map((pet) => (
+                  <option value="">ไม่เพิ่ม</option>
+                  {availableSecondaryPets.map((pet) => (
                     <option key={pet.id} value={pet.id}>
                       {pet.name} ({getSpeciesLabel(pet.species)})
                     </option>
                   ))}
                 </select>
               </label>
-            </div>
+            ) : (
+              <input type="hidden" name="secondaryPetId" value="" />
+            )}
 
             {resolvedCustomer && resolvedPrimaryPet ? (
               <div className="card panel-muted booking-summary-card">
@@ -1217,7 +1279,7 @@ export function BookingForm({ initialCustomers, rooms, services }: BookingFormPr
                 <div className="booking-preview-grid">
                   <span>ลูกค้า: {resolvedCustomer.full_name}</span>
                   <span>เบอร์โทร: {resolvedCustomer.phone || "-"}</span>
-                  <span>สัตว์เลี้ยง: {resolvedPrimaryPet.name}</span>
+                  <span>สัตว์เลี้ยง: {[resolvedPrimaryPet.name, showSecondaryPet ? resolvedSecondaryPet?.name : ""].filter(Boolean).join(", ")}</span>
                   <span>ประเภทสัตว์: {getSpeciesLabel(resolvedPrimaryPet.species)}</span>
                 </div>
               </div>
@@ -1695,45 +1757,6 @@ export function BookingForm({ initialCustomers, rooms, services }: BookingFormPr
                 ))}
               </select>
             </label>
-          ) : null}
-
-          {customerMode === "existing" ? (
-            <div className="stack panel-muted card">
-              <div className="list-card-top">
-                <div>
-                  <strong>เพิ่มสัตว์อีกตัว</strong>
-                  <p className="label-hint">ใช้เฉพาะเคสที่ต้องจองพร้อมกันสองตัว</p>
-                </div>
-                <button
-                  className="btn btn-ghost"
-                  type="button"
-                  onClick={() => setShowSecondaryPet((open) => !open)}
-                >
-                  {showSecondaryPet ? "ซ่อน" : "เปิด"}
-                </button>
-              </div>
-
-              {showSecondaryPet ? (
-                <label className="label">
-                  สัตว์เลี้ยงตัวที่ 2
-                  <select
-                    className="select"
-                    name="secondaryPetId"
-                    value={resolvedSecondaryPetId}
-                    onChange={(event) => setSecondaryPetId(event.target.value)}
-                  >
-                    <option value="">ไม่เพิ่ม</option>
-                    {availableSecondaryPets.map((pet) => (
-                      <option key={pet.id} value={pet.id}>
-                        {pet.name} ({getSpeciesLabel(pet.species)})
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              ) : (
-                <input type="hidden" name="secondaryPetId" value="" />
-              )}
-            </div>
           ) : null}
 
           {customerMode === "new" ? (

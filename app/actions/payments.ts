@@ -7,6 +7,10 @@ import { confirmBookingPayment, prepareBookingPayment, updateBookingPayment } fr
 import { revalidateBookingSurfaces } from "@/lib/revalidation";
 import type { PaymentMethod } from "@/types/database";
 
+function withSaveToast(path: string) {
+  return `${path}?toast=save`;
+}
+
 function normalizeMoney(value: number) {
   return Number(value.toFixed(2));
 }
@@ -57,7 +61,7 @@ export async function confirmPayment(formData: FormData) {
     }
 
     revalidateBookingSurfaces(bookingId);
-    redirect(`/payments/${bookingId}`);
+    redirect(withSaveToast(`/payments/${bookingId}`));
   }
 
   if (Number.isNaN(amount) || amount <= 0 || !isSameMoney(normalizeMoney(amount), remainingAmount)) {
@@ -78,7 +82,7 @@ export async function confirmPayment(formData: FormData) {
   }
 
   revalidateBookingSurfaces(bookingId);
-  redirect(`/payments/${bookingId}`);
+  redirect(withSaveToast(`/payments/${bookingId}`));
 }
 
 export async function updateRecordedPayment(formData: FormData) {
@@ -104,5 +108,5 @@ export async function updateRecordedPayment(formData: FormData) {
   });
 
   revalidateBookingSurfaces(bookingId);
-  redirect(`/payments/${bookingId}`);
+  redirect(withSaveToast(`/payments/${bookingId}`));
 }

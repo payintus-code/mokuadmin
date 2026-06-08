@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useFormStatus } from "react-dom";
 import { checkGroomingAvailability, createBooking, getAvailableRooms } from "@/app/actions/bookings";
 import { getCustomerPets, searchCustomers } from "@/app/actions/lookups";
@@ -256,70 +256,6 @@ function formatDateTimeSummary(value: string) {
   return `${day}/${month}/${year} ${hours}:${minutes}`;
 }
 
-function formatDateSummary(value: string) {
-  if (!value) {
-    return "-";
-  }
-
-  const normalized = value.includes("T") ? value : `${value}T00:00`;
-  const parsed = new Date(normalized);
-
-  if (Number.isNaN(parsed.getTime())) {
-    return value;
-  }
-
-  const day = String(parsed.getDate()).padStart(2, "0");
-  const month = String(parsed.getMonth() + 1).padStart(2, "0");
-  const year = parsed.getFullYear();
-  return `${day}/${month}/${year}`;
-}
-
-function parseDisplayDateToIso(value: string) {
-  const trimmed = value.trim();
-
-  if (!trimmed) {
-    return "";
-  }
-
-  const match = trimmed.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-
-  if (!match) {
-    return null;
-  }
-
-  const [, dayText, monthText, yearText] = match;
-  const day = Number(dayText);
-  const month = Number(monthText);
-  const year = Number(yearText);
-  const parsed = new Date(year, month - 1, day);
-
-  if (
-    Number.isNaN(parsed.getTime()) ||
-    parsed.getFullYear() !== year ||
-    parsed.getMonth() !== month - 1 ||
-    parsed.getDate() !== day
-  ) {
-    return null;
-  }
-
-  return `${yearText}-${monthText}-${dayText}`;
-}
-
-function openNativeDatePicker(input: HTMLInputElement | null) {
-  if (!input) {
-    return;
-  }
-
-  const pickerInput = input as HTMLInputElement & { showPicker?: () => void };
-
-  if (typeof pickerInput.showPicker === "function") {
-    pickerInput.showPicker();
-    return;
-  }
-
-  input.click();
-}
-
 function FieldMessage({
   tone,
   children
@@ -378,9 +314,6 @@ export function BookingForm({ initialCustomers, rooms, services }: BookingFormPr
   const [serviceId, setServiceId] = useState("");
   const [startAt, setStartAt] = useState(defaults.startAt);
   const [endAt, setEndAt] = useState(defaults.endAt);
-  const [groomingDateInput, setGroomingDateInput] = useState(formatDateSummary(getDatePart(defaults.startAt)));
-  const [hotelCheckInDateInput, setHotelCheckInDateInput] = useState(formatDateSummary(getDatePart(defaults.startAt)));
-  const [hotelCheckOutDateInput, setHotelCheckOutDateInput] = useState(formatDateSummary(getDatePart(defaults.endAt)));
   const [manualTotalAmount, setManualTotalAmount] = useState("");
   const [note, setNote] = useState("");
   const [importedContextNote, setImportedContextNote] = useState("");
@@ -419,9 +352,6 @@ export function BookingForm({ initialCustomers, rooms, services }: BookingFormPr
     data: null
   });
   const [roomSelectionNotice, setRoomSelectionNotice] = useState("");
-  const groomingDatePickerRef = useRef<HTMLInputElement>(null);
-  const hotelCheckInDatePickerRef = useRef<HTMLInputElement>(null);
-  const hotelCheckOutDatePickerRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     let active = true;
@@ -457,7 +387,11 @@ export function BookingForm({ initialCustomers, rooms, services }: BookingFormPr
 
   useEffect(() => {
     if (!hasExistingCustomers && customerMode !== "new") {
-      setCustomerMode("new");
+      const timer = window.setTimeout(() => {
+        setCustomerMode("new");
+      }, 0);
+
+      return () => window.clearTimeout(timer);
     }
   }, [customerMode, hasExistingCustomers]);
 
@@ -473,32 +407,42 @@ export function BookingForm({ initialCustomers, rooms, services }: BookingFormPr
     if (customerLookupStatus !== "loading" && filteredCustomers.length === 0) {
       const importDraft = importPreview?.data;
       const draft = parseCustomerSearchDraft(customerSearch);
+      const nextCustomerFullName =
+        !customerFullName.trim() && importDraft?.customerName
+          ? importDraft.customerName
+          : !customerFullName.trim() && !importDraft?.customerName && draft.customerFullName
+            ? draft.customerFullName
+            : null;
+      const nextCustomerPhone =
+        !customerPhone.trim() && importDraft?.phone
+          ? importDraft.phone
+          : !customerPhone.trim() && !importDraft?.phone && draft.customerPhone
+            ? draft.customerPhone
+            : null;
+      const nextPetName =
+        !newPetName.trim() && importDraft?.petName
+          ? importDraft.petName
+          : !newPetName.trim() && !importDraft?.petName && draft.petName
+            ? draft.petName
+            : null;
 
-      if (!customerFullName.trim() && importDraft?.customerName) {
-        setCustomerFullName(importDraft.customerName);
-      }
+      const timer = window.setTimeout(() => {
+        if (nextCustomerFullName) {
+          setCustomerFullName(nextCustomerFullName);
+        }
 
-      if (!customerFullName.trim() && !importDraft?.customerName && draft.customerFullName) {
-        setCustomerFullName(draft.customerFullName);
-      }
+        if (nextCustomerPhone) {
+          setCustomerPhone(nextCustomerPhone);
+        }
 
-      if (!customerPhone.trim() && importDraft?.phone) {
-        setCustomerPhone(importDraft.phone);
-      }
+        if (nextPetName) {
+          setNewPetName(nextPetName);
+        }
 
-      if (!customerPhone.trim() && !importDraft?.phone && draft.customerPhone) {
-        setCustomerPhone(draft.customerPhone);
-      }
+        setCustomerMode("new");
+      }, 0);
 
-      if (!newPetName.trim() && importDraft?.petName) {
-        setNewPetName(importDraft.petName);
-      }
-
-      if (!newPetName.trim() && !importDraft?.petName && draft.petName) {
-        setNewPetName(draft.petName);
-      }
-
-      setCustomerMode("new");
+      return () => window.clearTimeout(timer);
     }
   }, [customerFullName, customerLookupStatus, customerMode, customerPhone, customerSearch, filteredCustomers.length, importPreview, newPetName]);
 
@@ -512,12 +456,19 @@ export function BookingForm({ initialCustomers, rooms, services }: BookingFormPr
 
   useEffect(() => {
     if (!resolvedCustomerId) {
-      setPetLookupStatus("idle");
-      return;
+      const timer = window.setTimeout(() => {
+        setPetLookupStatus("idle");
+      }, 0);
+
+      return () => window.clearTimeout(timer);
     }
 
     let active = true;
-    setPetLookupStatus("loading");
+    const loadingTimer = window.setTimeout(() => {
+      if (active) {
+        setPetLookupStatus("loading");
+      }
+    }, 0);
 
     getCustomerPets(resolvedCustomerId)
       .then((nextPets) => {
@@ -536,6 +487,7 @@ export function BookingForm({ initialCustomers, rooms, services }: BookingFormPr
 
     return () => {
       active = false;
+      window.clearTimeout(loadingTimer);
     };
   }, [resolvedCustomerId]);
 
@@ -566,8 +518,12 @@ export function BookingForm({ initialCustomers, rooms, services }: BookingFormPr
       return;
     }
 
-    setShowSecondaryPet(false);
-    setSecondaryPetId("");
+    const timer = window.setTimeout(() => {
+      setShowSecondaryPet(false);
+      setSecondaryPetId("");
+    }, 0);
+
+    return () => window.clearTimeout(timer);
   }, [canAddSecondaryPet, showSecondaryPet]);
 
   const effectiveEndAt = useMemo(() => {
@@ -912,17 +868,29 @@ export function BookingForm({ initialCustomers, rooms, services }: BookingFormPr
   const hotelCheckOutTime = getTimePart(endAt);
   const groomingTimeOptions = getSelectableTimeOptions(getTimePart(startAt));
 
-  useEffect(() => {
-    setGroomingDateInput(formatDateSummary(getDatePart(startAt)));
-  }, [startAt]);
+  function updateGroomingDate(datePart: string) {
+    if (!datePart) {
+      return;
+    }
 
-  useEffect(() => {
-    setHotelCheckInDateInput(formatDateSummary(hotelCheckInDate));
-  }, [hotelCheckInDate]);
+    setStartAt(combineDateAndTime(datePart, getTimePart(startAt)));
+  }
 
-  useEffect(() => {
-    setHotelCheckOutDateInput(formatDateSummary(hotelCheckOutDate));
-  }, [hotelCheckOutDate]);
+  function updateHotelCheckInDate(datePart: string) {
+    if (!datePart) {
+      return;
+    }
+
+    setStartAt(combineDateAndTime(datePart, hotelCheckInTime));
+  }
+
+  function updateHotelCheckOutDate(datePart: string) {
+    if (!datePart) {
+      return;
+    }
+
+    setEndAt(combineDateAndTime(datePart, hotelCheckOutTime));
+  }
 
   const customerReady =
     customerMode === "existing"
@@ -1393,42 +1361,13 @@ export function BookingForm({ initialCustomers, rooms, services }: BookingFormPr
             <div className="grid-2">
               <label className="label">
                 วันที่
-                <div className="date-input-row">
-                  <input
-                    className="input"
-                    type="text"
-                    inputMode="numeric"
-                    placeholder="dd/mm/yyyy"
-                    value={groomingDateInput}
-                    onChange={(event) => {
-                      const nextValue = event.target.value;
-                      setGroomingDateInput(nextValue);
-                      const parsed = parseDisplayDateToIso(nextValue);
-                      if (parsed) {
-                        setStartAt(combineDateAndTime(parsed, getTimePart(startAt)));
-                      }
-                    }}
-                    onBlur={() => setGroomingDateInput(formatDateSummary(getDatePart(startAt)))}
-                    required
-                  />
-                  <button
-                    className="date-picker-button"
-                    type="button"
-                    aria-label="เลือกวันที่"
-                    onClick={() => openNativeDatePicker(groomingDatePickerRef.current)}
-                  >
-                    <span aria-hidden="true">📅</span>
-                  </button>
-                  <input
-                    ref={groomingDatePickerRef}
-                    className="date-picker-native"
-                    type="date"
-                    tabIndex={-1}
-                    aria-hidden="true"
-                    value={getDatePart(startAt)}
-                    onChange={(event) => setStartAt(combineDateAndTime(event.target.value, getTimePart(startAt)))}
-                  />
-                </div>
+                <input
+                  className="input date-input-native"
+                  type="date"
+                  value={getDatePart(startAt)}
+                  onChange={(event) => updateGroomingDate(event.target.value)}
+                  required
+                />
               </label>
 
               <label className="label">
@@ -1475,82 +1414,24 @@ export function BookingForm({ initialCustomers, rooms, services }: BookingFormPr
             <div className="grid-2">
               <label className="label">
                 วันที่เช็กอิน
-                <div className="date-input-row">
-                  <input
-                    className="input"
-                    type="text"
-                    inputMode="numeric"
-                    placeholder="dd/mm/yyyy"
-                    value={hotelCheckInDateInput}
-                    onChange={(event) => {
-                      const nextValue = event.target.value;
-                      setHotelCheckInDateInput(nextValue);
-                      const parsed = parseDisplayDateToIso(nextValue);
-                      if (parsed) {
-                        setStartAt(combineDateAndTime(parsed, hotelCheckInTime));
-                      }
-                    }}
-                    onBlur={() => setHotelCheckInDateInput(formatDateSummary(hotelCheckInDate))}
-                    required
-                  />
-                  <button
-                    className="date-picker-button"
-                    type="button"
-                    aria-label="เลือกวันที่เช็กอิน"
-                    onClick={() => openNativeDatePicker(hotelCheckInDatePickerRef.current)}
-                  >
-                    <span aria-hidden="true">📅</span>
-                  </button>
-                  <input
-                    ref={hotelCheckInDatePickerRef}
-                    className="date-picker-native"
-                    type="date"
-                    tabIndex={-1}
-                    aria-hidden="true"
-                    value={hotelCheckInDate}
-                    onChange={(event) => setStartAt(combineDateAndTime(event.target.value, hotelCheckInTime))}
-                  />
-                </div>
+                <input
+                  className="input date-input-native"
+                  type="date"
+                  value={hotelCheckInDate}
+                  onChange={(event) => updateHotelCheckInDate(event.target.value)}
+                  required
+                />
               </label>
 
               <label className="label">
                 วันที่เช็กเอาต์
-                <div className="date-input-row">
-                  <input
-                    className="input"
-                    type="text"
-                    inputMode="numeric"
-                    placeholder="dd/mm/yyyy"
-                    value={hotelCheckOutDateInput}
-                    onChange={(event) => {
-                      const nextValue = event.target.value;
-                      setHotelCheckOutDateInput(nextValue);
-                      const parsed = parseDisplayDateToIso(nextValue);
-                      if (parsed) {
-                        setEndAt(combineDateAndTime(parsed, hotelCheckOutTime));
-                      }
-                    }}
-                    onBlur={() => setHotelCheckOutDateInput(formatDateSummary(hotelCheckOutDate))}
-                    required
-                  />
-                  <button
-                    className="date-picker-button"
-                    type="button"
-                    aria-label="เลือกวันที่เช็กเอาต์"
-                    onClick={() => openNativeDatePicker(hotelCheckOutDatePickerRef.current)}
-                  >
-                    <span aria-hidden="true">📅</span>
-                  </button>
-                  <input
-                    ref={hotelCheckOutDatePickerRef}
-                    className="date-picker-native"
-                    type="date"
-                    tabIndex={-1}
-                    aria-hidden="true"
-                    value={hotelCheckOutDate}
-                    onChange={(event) => setEndAt(combineDateAndTime(event.target.value, hotelCheckOutTime))}
-                  />
-                </div>
+                <input
+                  className="input date-input-native"
+                  type="date"
+                  value={hotelCheckOutDate}
+                  onChange={(event) => updateHotelCheckOutDate(event.target.value)}
+                  required
+                />
               </label>
             </div>
 
@@ -1605,16 +1486,16 @@ export function BookingForm({ initialCustomers, rooms, services }: BookingFormPr
         </summary>
 
         <div className="stack">
-          <label className="label">
-            หมายเหตุคิว
-            <textarea
-              className="textarea"
-              name="note"
-              value={note}
-              onChange={(event) => setNote(event.target.value)}
-              placeholder="ข้อมูลที่อยากให้ทีมเห็นในคิวนี้"
-            />
-          </label>
+            <label className="label">
+              หมายเหตุคิว
+              <textarea
+                className="textarea"
+                name="note"
+                value={note}
+                onChange={(event) => setNote(event.target.value)}
+                placeholder="ข้อมูลที่อยากให้ทีมเห็นในคิวนี้"
+              />
+            </label>
 
           <label className="label">
             ยอดรวม
@@ -1836,22 +1717,13 @@ export function BookingForm({ initialCustomers, rooms, services }: BookingFormPr
             </div>
           ) : null}
         </div>
+
       </details>
 
-      <div className="booking-form-action booking-action-bar">
-        <div className="booking-action-copy">
-          <strong>พร้อมสร้างคิว</strong>
-          <p className="booking-action-hint">
-            {canSubmit
-              ? "กดเพื่อตรวจสอบข้อมูลก่อนบันทึกจริงอีกครั้ง"
-              : "กดเพื่อตรวจสอบ checklist และจุดที่ยังต้องแก้ก่อนบันทึก"}
-          </p>
-          {formError ? <FieldMessage tone="danger">{formError}</FieldMessage> : null}
-          {formSuccess ? <FieldMessage tone="success">{formSuccess}</FieldMessage> : null}
-        </div>
-        <div className="booking-action-buttons">
-          <ReviewButton disabled={false} onClick={() => setIsReviewOpen(true)} />
-        </div>
+      <div className="booking-form-action booking-optional-action">
+        {formError ? <FieldMessage tone="danger">{formError}</FieldMessage> : null}
+        {formSuccess ? <FieldMessage tone="success">{formSuccess}</FieldMessage> : null}
+        <ReviewButton disabled={false} onClick={() => setIsReviewOpen(true)} />
       </div>
 
       {isReviewOpen ? (

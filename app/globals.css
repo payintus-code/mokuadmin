@@ -441,40 +441,9 @@ textarea:focus-visible {
   box-shadow: 0 1px 0 rgba(74, 47, 27, 0.02);
 }
 
-.date-input-row {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.date-input-row .input {
-  flex: 1;
-}
-
-.date-picker-button {
-  flex: 0 0 auto;
-  width: 50px;
-  min-width: 50px;
-  min-height: 52px;
-  border: 1px solid var(--line-strong);
-  border-radius: 16px;
-  background: var(--accent-soft);
-  color: var(--brand-strong);
-  cursor: pointer;
-}
-
-.date-picker-button:hover {
-  background: var(--cream);
-  border-color: rgba(140, 90, 57, 0.22);
-}
-
-.date-picker-native {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  opacity: 0;
-  pointer-events: none;
+.date-input-native {
+  min-width: 0;
+  color-scheme: light;
 }
 
 .input::placeholder,
@@ -1646,7 +1615,7 @@ textarea:focus-visible {
 
 .booking-form-shell {
   gap: 20px;
-  padding-bottom: calc(220px + env(safe-area-inset-bottom));
+  padding-bottom: calc(110px + env(safe-area-inset-bottom));
 }
 
 .booking-form-main {
@@ -1655,12 +1624,9 @@ textarea:focus-visible {
 }
 
 .booking-form-action {
-  position: fixed;
-  left: 50%;
-  bottom: calc(88px + env(safe-area-inset-bottom));
-  z-index: 35;
-  width: min(calc(100vw - 24px), 1120px);
-  transform: translateX(-50%);
+  display: grid;
+  justify-items: stretch;
+  padding-top: 6px;
 }
 
 .booking-type-grid {
@@ -2170,8 +2136,8 @@ textarea:focus-visible {
   }
 
   .booking-form-action {
-    bottom: 24px;
-    width: min(calc(100vw - 48px), 1120px);
+    justify-self: end;
+    width: min(320px, 100%);
   }
 
   .booking-toolbar-actions {
@@ -2468,17 +2434,6 @@ textarea:focus-visible {
     font-size: 16px;
   }
 
-  .date-input-row {
-    gap: 8px;
-  }
-
-  .date-picker-button {
-    width: 48px;
-    min-width: 48px;
-    min-height: 48px;
-    border-radius: 16px;
-  }
-
   .form-section {
     gap: 14px;
     padding: 16px;
@@ -2510,14 +2465,27 @@ textarea:focus-visible {
     align-items: start;
   }
 
+  .booking-form-shell {
+    padding-bottom: 0;
+  }
+
   .booking-action-bar {
     padding: 14px;
     border-radius: 20px;
   }
 
   .booking-form-action {
-    bottom: calc(84px + env(safe-area-inset-bottom));
-    width: min(calc(100vw - 20px), 1120px);
+    justify-self: stretch;
+    width: 100%;
+  }
+
+  .booking-optional-action {
+    gap: 0;
+    padding: 14px;
+    border: 1px solid rgba(123, 91, 65, 0.12);
+    border-radius: 20px;
+    background: var(--card);
+    box-shadow: var(--shadow-sm);
   }
 
   .booking-review-modal-overlay {
@@ -2796,5 +2764,222 @@ textarea:focus-visible {
   .metric-card {
     box-shadow: none;
     backdrop-filter: none;
+  }
+}
+
+.marketing-toolbar {
+  gap: 18px;
+}
+
+.marketing-toolbar-top,
+.marketing-bar-labels,
+.marketing-bar-meta,
+.marketing-subsection-head,
+.marketing-badge-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.marketing-toolbar-copy {
+  margin: 8px 0 0;
+  color: var(--muted);
+}
+
+.marketing-kpi-grid,
+.marketing-grid,
+.marketing-action-grid {
+  display: grid;
+  gap: 16px;
+}
+
+.marketing-kpi-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.marketing-grid,
+.marketing-action-grid {
+  grid-template-columns: repeat(1, minmax(0, 1fr));
+}
+
+.marketing-panel {
+  min-height: 100%;
+}
+
+.marketing-chip-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.marketing-chip-card {
+  display: grid;
+  gap: 6px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.78);
+}
+
+.marketing-chip-card span,
+.marketing-chip-card small {
+  color: var(--muted);
+}
+
+.marketing-bar-list,
+.marketing-subsection {
+  display: grid;
+  gap: 12px;
+}
+
+.marketing-bar-row {
+  display: grid;
+  gap: 8px;
+}
+
+.marketing-bar-labels span,
+.marketing-bar-meta span,
+.marketing-table-primary span,
+.marketing-table-row span small {
+  color: var(--muted);
+}
+
+.marketing-bar-track {
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(90, 74, 63, 0.12);
+  overflow: hidden;
+}
+
+.marketing-bar-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #d68c45 0%, #b8652a 100%);
+}
+
+.marketing-table {
+  display: grid;
+  gap: 8px;
+}
+
+.marketing-table-head,
+.marketing-table-row {
+  display: grid;
+  gap: 10px;
+  align-items: center;
+}
+
+.marketing-table-head {
+  padding: 0 2px 6px;
+  color: var(--muted);
+  font-size: 0.86rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.marketing-table-row {
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.82);
+  text-decoration: none;
+  color: inherit;
+}
+
+.marketing-table-row:hover {
+  border-color: rgba(184, 101, 42, 0.32);
+  box-shadow: 0 10px 24px rgba(80, 53, 37, 0.08);
+}
+
+.marketing-table-primary {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.marketing-customer-grid {
+  grid-template-columns: minmax(0, 2fr) 80px 110px 110px;
+}
+
+.marketing-service-grid {
+  grid-template-columns: minmax(0, 1.8fr) 70px 110px 80px;
+}
+
+.marketing-room-grid {
+  grid-template-columns: minmax(0, 1.8fr) 74px 74px 110px;
+}
+
+.marketing-payment-grid {
+  grid-template-columns: minmax(0, 1.5fr) 120px 80px;
+}
+
+.marketing-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 26px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.marketing-badge-30d {
+  background: rgba(221, 168, 83, 0.18);
+  color: #915708;
+}
+
+.marketing-badge-60d {
+  background: rgba(217, 117, 55, 0.16);
+  color: #a34a1f;
+}
+
+.marketing-badge-90d,
+.marketing-badge-risk {
+  background: rgba(173, 61, 44, 0.14);
+  color: #8f291d;
+}
+
+@media (min-width: 900px) {
+  .marketing-kpi-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .marketing-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .marketing-action-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 899px) {
+  .marketing-toolbar-top,
+  .marketing-bar-labels,
+  .marketing-bar-meta,
+  .marketing-subsection-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
+@media (max-width: 640px) {
+  .marketing-kpi-grid,
+  .marketing-chip-grid {
+    grid-template-columns: repeat(1, minmax(0, 1fr));
+  }
+
+  .marketing-customer-grid,
+  .marketing-service-grid,
+  .marketing-room-grid,
+  .marketing-payment-grid {
+    grid-template-columns: repeat(1, minmax(0, 1fr));
+  }
+
+  .marketing-table-head {
+    display: none;
   }
 }

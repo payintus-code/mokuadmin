@@ -186,3 +186,98 @@ export type ReceiptViewModel = {
   payment_method: PaymentMethod;
   paid_at: string;
 };
+
+export type MarketingBookingTypeFilter = BookingType | "all";
+
+export type MarketingDashboardFilters = {
+  mode: "month" | "range";
+  startDate: string;
+  endDate: string;
+  bookingType: MarketingBookingTypeFilter;
+};
+
+export type MarketingKpiSummary = {
+  new_customers: number;
+  active_customers: number;
+  returning_customers: number;
+  repeat_customers: number;
+  repeat_rate: number;
+  completed_bookings: number;
+  revenue: number;
+  average_order_value: number;
+  grooming_bookings: number;
+  hotel_bookings: number;
+  cancellation_rate: number;
+  pending_payment_count: number;
+  pending_payment_amount: number;
+  income_collected: number;
+};
+
+export type MarketingCustomerRow = {
+  customer_id: string;
+  customer_name: string;
+  customer_phone: string | null;
+  facebook_name: string | null;
+  booking_count: number;
+  total_spend: number;
+  average_order_value: number;
+  last_booking_at: string | null;
+  days_since_last_booking: number | null;
+  win_back_segment: "30d" | "60d" | "90d" | null;
+  is_at_risk: boolean;
+  pet_summary: string;
+};
+
+export type MarketingServiceRow = {
+  service_name: string;
+  quantity: number;
+  booking_count: number;
+  revenue: number;
+  revenue_share: number;
+};
+
+export type MarketingRoomRow = {
+  room_name: string;
+  booking_count: number;
+  nights: number;
+  revenue: number;
+  revenue_share: number;
+};
+
+export type MarketingDemandBucket = {
+  key: string;
+  label: string;
+  booking_count: number;
+  revenue: number;
+  share_of_bookings: number;
+};
+
+export type MarketingPaymentMethodRow = {
+  payment_method: PaymentMethod;
+  amount: number;
+  share: number;
+};
+
+export type MarketingMixRow = {
+  key: string;
+  label: string;
+  count: number;
+  share: number;
+};
+
+export type MarketingDashboardViewModel = {
+  filters: MarketingDashboardFilters;
+  summary: MarketingKpiSummary;
+  booking_mix: MarketingMixRow[];
+  top_services: MarketingServiceRow[];
+  top_rooms: MarketingRoomRow[];
+  weekday_demand: MarketingDemandBucket[];
+  hour_demand: MarketingDemandBucket[];
+  species_mix: MarketingMixRow[];
+  breed_mix: MarketingMixRow[];
+  payment_methods: MarketingPaymentMethodRow[];
+  top_customers_by_spend: MarketingCustomerRow[];
+  top_customers_by_frequency: MarketingCustomerRow[];
+  win_back_customers: MarketingCustomerRow[];
+  at_risk_customers: MarketingCustomerRow[];
+};

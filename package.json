@@ -10,7 +10,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
-    "test": "node --test --experimental-transform-types --test-concurrency=1 --experimental-test-isolation=none"
+    "test": "node --test --experimental-transform-types --test-concurrency=1 --experimental-test-isolation=none",
+    "security:check-public-rls": "node scripts/verify-public-table-access.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.5.2",

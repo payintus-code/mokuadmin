@@ -1,5 +1,6 @@
 import QRCode from "qrcode";
 import { resolvePaymentStatus } from "@/lib/payment-status";
+import { buildNextReceiptNo, getReceiptNoBase } from "@/lib/receipt-numbers";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import type { BookingPayment, PaymentMethod, ReceiptViewModel, ShopSettings } from "@/types/database";
@@ -24,6 +25,12 @@ type BookingPaymentSummary = {
   promptpayQrDataUrl: string | null;
 };
 
+type DatabaseWriteError = {
+  code?: string;
+  message: string;
+  details?: string | null;
+};
+
 const BUSINESS_TIME_ZONE = "Asia/Bangkok";
 const DEFAULT_SHOP_SETTINGS: ShopSettings = {
   id: 1,
@@ -42,10 +49,6 @@ function toSingle<T>(value: T | T[] | null | undefined) {
   return Array.isArray(value) ? value[0] : value;
 }
 
-function formatDateKey(date = new Date()) {
-  return formatBusinessDate(date).replaceAll("-", "");
-}
-
 function formatBusinessDate(date = new Date()) {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone: BUSINESS_TIME_ZONE,
@@ -53,6 +56,11 @@ function formatBusinessDate(date = new Date()) {
     month: "2-digit",
     day: "2-digit"
   }).format(date);
+}
+
+function isReceiptNoUniqueConflict(error: DatabaseWriteError) {
+  const message = `${error.message} ${error.details ?? ""}`;
+  return error.code === "23505" && message.includes("booking_payments_receipt_no_key");
 }
 
 function tlv(id: string, value: string) {
@@ -217,22 +225,27 @@ async function getShopSettingsRecord(useAdminClient = false) {
   } as ShopSettings;
 }
 
-async function generateReceiptNo(prefix: string, issuedAt: Date) {
+async function generateReceiptNo(prefix: string, issuedAt: Date, offset = 0) {
   const supabase = createAdminClient();
-  const dayKey = formatDateKey(issuedAt);
-  const start = `${issuedAt.toISOString().slice(0, 10)}T00:00:00.000Z`;
-  const end = `${issuedAt.toISOString().slice(0, 10)}T23:59:59.999Z`;
-  const { count, error } = await supabase
+  const base = getReceiptNoBase(prefix, issuedAt);
+  const { data, error } = await supabase
     .from("booking_payments")
-    .select("*", { count: "exact", head: true })
-    .gte("receipt_issued_at", start)
-    .lte("receipt_issued_at", end);
+    .select("receipt_no")
+    .gte("receipt_no", base)
+    .lt("receipt_no", `${base}\uffff`)
+    .order("receipt_no", { ascending: false })
+    .limit(25);
 
   if (error) {
     throw new Error(error.message);
   }
 
-  return `${prefix}${dayKey}-${String((count ?? 0) + 1).padStart(4, "0")}`;
+  return buildNextReceiptNo(
+    prefix,
+    issuedAt,
+    (data ?? []).map((row) => row.receipt_no),
+    offset
+  );
 }
 
 export async function prepareBookingPayment(bookingId: string, options?: { useAdminClient?: boolean }): Promise<BookingPaymentSummary> {
@@ -521,24 +534,38 @@ export async function createOrUpdateBookingPayment(input: {
     paidAmount: nextAmount,
     storedStatus: hasKnownTotal && nextAmount >= paymentInfo.totalAmount ? "paid" : "pending"
   });
-  const receiptNo =
-    nextStatus === "paid" ? paymentInfo.payment?.receipt_no ?? (await generateReceiptNo(paymentInfo.shop.receipt_prefix, paidAt)) : null;
+  let receiptNo: string | null = null;
+  let paymentError: DatabaseWriteError | null = null;
+  const existingReceiptNo = paymentInfo.payment?.receipt_no ?? null;
 
-  const upsertPayload = {
-    booking_id: input.bookingId,
-    amount: nextAmount,
-    method: input.method,
-    status: nextStatus,
-    reference_no: input.referenceNo?.trim() || null,
-    receipt_no: receiptNo,
-    receipt_issued_at:
-      nextStatus === "paid" ? paymentInfo.payment?.receipt_issued_at ?? paidAt.toISOString() : paymentInfo.payment?.receipt_issued_at ?? null,
-    paid_at: nextStatus === "paid" ? paymentInfo.payment?.paid_at ?? paidAt.toISOString() : null,
-    note: input.note?.trim() || null,
-    confirmed_by: input.actorUserId ?? null
-  };
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    receiptNo = nextStatus === "paid" ? existingReceiptNo ?? (await generateReceiptNo(paymentInfo.shop.receipt_prefix, paidAt, attempt)) : null;
 
-  const { error: paymentError } = await supabase.from("booking_payments").upsert(upsertPayload, { onConflict: "booking_id" });
+    const upsertPayload = {
+      booking_id: input.bookingId,
+      amount: nextAmount,
+      method: input.method,
+      status: nextStatus,
+      reference_no: input.referenceNo?.trim() || null,
+      receipt_no: receiptNo,
+      receipt_issued_at:
+        nextStatus === "paid" ? paymentInfo.payment?.receipt_issued_at ?? paidAt.toISOString() : paymentInfo.payment?.receipt_issued_at ?? null,
+      paid_at: nextStatus === "paid" ? paymentInfo.payment?.paid_at ?? paidAt.toISOString() : null,
+      note: input.note?.trim() || null,
+      confirmed_by: input.actorUserId ?? null
+    };
+
+    const { error } = await supabase.from("booking_payments").upsert(upsertPayload, { onConflict: "booking_id" });
+    paymentError = error;
+
+    if (!paymentError) {
+      break;
+    }
+
+    if (existingReceiptNo || nextStatus !== "paid" || !isReceiptNoUniqueConflict(paymentError)) {
+      break;
+    }
+  }
 
   if (paymentError) {
     throw new Error(paymentError.message);
@@ -631,23 +658,38 @@ export async function updateBookingPayment(input: {
     paidAmount: nextAmount,
     storedStatus: hasKnownTotal && nextAmount >= paymentInfo.totalAmount ? "paid" : "pending"
   });
-  const receiptNo =
-    nextStatus === "paid" ? paymentInfo.payment.receipt_no ?? (await generateReceiptNo(paymentInfo.shop.receipt_prefix, paidAt)) : null;
+  let receiptNo: string | null = null;
+  let paymentError: DatabaseWriteError | null = null;
+  const existingReceiptNo = paymentInfo.payment.receipt_no ?? null;
 
-  const { error: paymentError } = await supabase
-    .from("booking_payments")
-    .update({
-      amount: nextAmount,
-      method: input.method,
-      status: nextStatus,
-      reference_no: input.referenceNo?.trim() || null,
-      receipt_no: receiptNo,
-      receipt_issued_at: nextStatus === "paid" ? paymentInfo.payment.receipt_issued_at ?? paidAt.toISOString() : null,
-      paid_at: nextStatus === "paid" ? paymentInfo.payment.paid_at ?? paidAt.toISOString() : null,
-      note: input.note?.trim() || null,
-      confirmed_by: input.actorUserId ?? null
-    })
-    .eq("booking_id", input.bookingId);
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    receiptNo = nextStatus === "paid" ? existingReceiptNo ?? (await generateReceiptNo(paymentInfo.shop.receipt_prefix, paidAt, attempt)) : null;
+
+    const { error } = await supabase
+      .from("booking_payments")
+      .update({
+        amount: nextAmount,
+        method: input.method,
+        status: nextStatus,
+        reference_no: input.referenceNo?.trim() || null,
+        receipt_no: receiptNo,
+        receipt_issued_at: nextStatus === "paid" ? paymentInfo.payment.receipt_issued_at ?? paidAt.toISOString() : null,
+        paid_at: nextStatus === "paid" ? paymentInfo.payment.paid_at ?? paidAt.toISOString() : null,
+        note: input.note?.trim() || null,
+        confirmed_by: input.actorUserId ?? null
+      })
+      .eq("booking_id", input.bookingId);
+
+    paymentError = error;
+
+    if (!paymentError) {
+      break;
+    }
+
+    if (existingReceiptNo || nextStatus !== "paid" || !isReceiptNoUniqueConflict(paymentError)) {
+      break;
+    }
+  }
 
   if (paymentError) {
     throw new Error(paymentError.message);

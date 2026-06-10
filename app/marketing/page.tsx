@@ -1,6 +1,7 @@
+import type { ReactNode } from "react";
 import { format, parse } from "date-fns";
 import { th } from "date-fns/locale";
-import { BarChart3, Clock3, Coins, CreditCard, Hotel, Megaphone, Repeat2, Scissors, TriangleAlert, Users } from "lucide-react";
+import { BarChart3, CalendarDays, Clock3, Coins, CreditCard, Hotel, Megaphone, Repeat2, Scissors, TriangleAlert, Users } from "lucide-react";
 import Link from "next/link";
 import { EmptyState } from "@/components/ui/empty-state";
 import { MetricCard } from "@/components/ui/metric-card";
@@ -11,22 +12,53 @@ import { requireAdmin } from "@/lib/auth";
 import { hasSupabaseEnv } from "@/lib/env";
 import { formatBaht } from "@/lib/format";
 import { getDefaultMarketingDateRange, getMarketingDashboard } from "@/lib/marketing";
-import type { MarketingBookingTypeFilter, MarketingCustomerRow, MarketingDashboardFilters, MarketingDemandBucket, MarketingMixRow, MarketingPaymentMethodRow, MarketingRoomRow, MarketingServiceRow } from "@/types/database";
+import type {
+  MarketingBookingTypeFilter,
+  MarketingCustomerRow,
+  MarketingDashboardFilters,
+  MarketingDemandBucket,
+  MarketingKpiSummary,
+  MarketingMixRow,
+  MarketingPaymentMethodRow,
+  MarketingRoomRow,
+  MarketingServiceRow
+} from "@/types/database";
 
 export const dynamic = "force-dynamic";
 
 const paymentMethodLabels: Record<string, string> = {
-  cash: "Cash",
+  cash: "เงินสด",
   promptpay_qr: "PromptPay QR",
-  transfer: "Transfer",
-  card: "Card",
-  other: "Other"
+  transfer: "โอนเงิน",
+  card: "บัตร",
+  other: "อื่น ๆ"
 };
 
 const bookingTypeLabels: Record<MarketingBookingTypeFilter, string> = {
-  all: "ทุกประเภท",
-  grooming: "Grooming",
-  hotel: "Hotel"
+  all: "ทั้งหมด",
+  grooming: "อาบน้ำ / ตัดขน",
+  hotel: "โรงแรม / ฝากเลี้ยง"
+};
+
+const bookingMixLabels: Record<string, string> = {
+  grooming: "อาบน้ำ / ตัดขน",
+  hotel: "โรงแรม / ฝากเลี้ยง"
+};
+
+const weekdayLabels: Record<string, string> = {
+  Sun: "วันอาทิตย์",
+  Mon: "วันจันทร์",
+  Tue: "วันอังคาร",
+  Wed: "วันพุธ",
+  Thu: "วันพฤหัสบดี",
+  Fri: "วันศุกร์",
+  Sat: "วันเสาร์"
+};
+
+const winBackSegmentLabels: Record<NonNullable<MarketingCustomerRow["win_back_segment"]>, string> = {
+  "30d": "หายไป 30+ วัน",
+  "60d": "หายไป 60+ วัน",
+  "90d": "หายไป 90+ วัน"
 };
 
 function getMonthRange(month: string) {
@@ -86,13 +118,30 @@ function formatCount(value: number) {
   return new Intl.NumberFormat("th-TH").format(value);
 }
 
+function formatDateKey(dateKey: string) {
+  const parsed = parse(dateKey, "yyyy-MM-dd", new Date());
+  return format(parsed, "d MMM yyyy", { locale: th });
+}
+
 function formatFilterLabel(filters: MarketingDashboardFilters & { monthValue: string }) {
   if (filters.mode === "month") {
     const parsed = parse(`${filters.monthValue}-01`, "yyyy-MM-dd", new Date());
     return format(parsed, "MMMM yyyy", { locale: th });
   }
 
-  return `${filters.startDate} - ${filters.endDate}`;
+  return `${formatDateKey(filters.startDate)} - ${formatDateKey(filters.endDate)}`;
+}
+
+function formatDemandLabel(label: string) {
+  return weekdayLabels[label] ?? label;
+}
+
+function formatBookingMixLabel(item: MarketingMixRow) {
+  return bookingMixLabels[item.key] ?? item.label;
+}
+
+function formatLastSeen(value: string | null) {
+  return value ? formatDateKey(value.slice(0, 10)) : "-";
 }
 
 function buildSearchHref(filters: MarketingDashboardFilters & { monthValue: string }, nextMode?: "month" | "range") {
@@ -111,28 +160,101 @@ function buildSearchHref(filters: MarketingDashboardFilters & { monthValue: stri
   return `/marketing?${query.toString()}`;
 }
 
-function InsightBars({ title, subtitle, items }: { title: string; subtitle: string; items: MarketingDemandBucket[] }) {
+function SectionIntro({ eyebrow, title, copy, icon }: { eyebrow: string; title: string; copy?: string; icon?: ReactNode }) {
+  return (
+    <div className="marketing-section-intro">
+      <div className="section-kicker">
+        {icon}
+        <span>{eyebrow}</span>
+      </div>
+      <div>
+        <h2 className="section-title">{title}</h2>
+        {copy ? <p className="marketing-section-copy">{copy}</p> : null}
+      </div>
+    </div>
+  );
+}
+
+function SnapshotCard({
+  label,
+  value,
+  detail,
+  icon,
+  tone = "default",
+  primary = false
+}: {
+  label: string;
+  value: string;
+  detail: string;
+  icon: ReactNode;
+  tone?: "default" | "success" | "warning" | "danger";
+  primary?: boolean;
+}) {
+  const className = ["marketing-snapshot-card", `marketing-snapshot-card-${tone}`, primary ? "marketing-snapshot-card-primary" : ""].filter(Boolean).join(" ");
+
+  return (
+    <article className={className}>
+      <div className="marketing-snapshot-top">
+        <span>{label}</span>
+        <span className="marketing-snapshot-icon">{icon}</span>
+      </div>
+      <strong>{value}</strong>
+      <p>{detail}</p>
+    </article>
+  );
+}
+
+function BusinessSnapshot({ summary }: { summary: MarketingKpiSummary }) {
+  return (
+    <section className="marketing-snapshot" aria-label="ตัวเลขภาพรวมธุรกิจ">
+      <SnapshotCard
+        primary
+        tone="success"
+        label="รายได้"
+        value={formatBaht(summary.revenue)}
+        detail={`จากคิวที่เสร็จแล้ว ${formatCount(summary.completed_bookings)} คิว`}
+        icon={<Coins size={18} strokeWidth={2.1} />}
+      />
+      <SnapshotCard
+        label="จำนวนคิว"
+        value={`${formatCount(summary.completed_bookings)} คิว`}
+        detail="คิวที่ปิดงานแล้วในช่วงที่เลือก"
+        icon={<Clock3 size={18} strokeWidth={2.1} />}
+      />
+      <SnapshotCard
+        tone="success"
+        label="ลูกค้ากลับมาซ้ำ"
+        value={`${formatCount(summary.repeat_customers)} คน`}
+        detail={`คิดเป็น ${formatPercent(summary.repeat_rate)} ของลูกค้าที่มาใช้บริการ`}
+        icon={<Repeat2 size={18} strokeWidth={2.1} />}
+      />
+      <SnapshotCard
+        label="ลูกค้าใหม่"
+        value={`${formatCount(summary.new_customers)} คน`}
+        detail="ลูกค้าที่เริ่มใช้บริการในช่วงนี้"
+        icon={<Users size={18} strokeWidth={2.1} />}
+      />
+    </section>
+  );
+}
+
+function InsightBars({ title, subtitle, description, items }: { title: string; subtitle: string; description: string; items: MarketingDemandBucket[] }) {
   return (
     <section className="panel stack marketing-panel">
-      <div className="frontdesk-section-heading">
-        <div>
-          <div className="section-kicker">{title}</div>
-          <h2 className="section-title">{subtitle}</h2>
-        </div>
-      </div>
+      <SectionIntro eyebrow={title} title={subtitle} copy={description} />
 
       <div className="marketing-bar-list">
         {items.map((item) => (
           <div key={item.key} className="marketing-bar-row">
             <div className="marketing-bar-labels">
-              <strong>{item.label}</strong>
-              <span>{formatCount(item.booking_count)} bookings</span>
+              <strong>{formatDemandLabel(item.label)}</strong>
+              <span>{formatCount(item.booking_count)} คิว</span>
             </div>
             <div className="marketing-bar-track" aria-hidden="true">
               <div className="marketing-bar-fill" style={{ width: `${Math.max(item.share_of_bookings * 100, item.booking_count ? 6 : 0)}%` }} />
             </div>
             <div className="marketing-bar-meta">
-              <span>{formatPercent(item.share_of_bookings)}</span>
+              <span>{formatPercent(item.share_of_bookings)} ของคิว</span>
               <span>{formatBaht(item.revenue)}</span>
             </div>
           </div>
@@ -142,28 +264,61 @@ function InsightBars({ title, subtitle, items }: { title: string; subtitle: stri
   );
 }
 
-function MixChips({ title, items }: { title: string; items: MarketingMixRow[] }) {
+function MixChips({
+  eyebrow,
+  title,
+  description,
+  items,
+  valueLabel,
+  emptyText
+}: {
+  eyebrow: string;
+  title: string;
+  description: string;
+  items: MarketingMixRow[];
+  valueLabel: string;
+  emptyText: string;
+}) {
   return (
     <section className="panel stack marketing-panel">
-      <div className="frontdesk-section-heading">
-        <div>
-          <div className="section-kicker">Segments</div>
-          <h2 className="section-title">{title}</h2>
-        </div>
-      </div>
+      <SectionIntro eyebrow={eyebrow} title={title} copy={description} />
 
       <div className="marketing-chip-grid">
         {items.length ? (
           items.map((item) => (
             <div key={item.key} className="marketing-chip-card">
-              <strong>{item.label}</strong>
-              <span>{formatCount(item.count)} records</span>
+              <strong>{formatBookingMixLabel(item)}</strong>
+              <span>
+                {formatCount(item.count)} {valueLabel}
+              </span>
               <small>{formatPercent(item.share)}</small>
             </div>
           ))
         ) : (
-          <div className="soft-note">ยังไม่มีข้อมูลในช่วงที่เลือก</div>
+          <div className="soft-note">{emptyText}</div>
         )}
+      </div>
+    </section>
+  );
+}
+
+function BookingMixPanel({ items, groomingBookings, hotelBookings }: { items: MarketingMixRow[]; groomingBookings: number; hotelBookings: number }) {
+  return (
+    <section className="panel stack marketing-panel">
+      <SectionIntro eyebrow="ประเภทบริการ" title="คิวมาจากบริการไหน" copy="ดูว่างานหลักช่วงนี้มาจากอาบน้ำ/ตัดขน หรือโรงแรมมากกว่ากัน" />
+
+      <div className="marketing-chip-grid">
+        {items.map((item) => (
+          <div key={item.key} className="marketing-chip-card">
+            <strong>{formatBookingMixLabel(item)}</strong>
+            <span>{formatCount(item.count)} คิว</span>
+            <small>{formatPercent(item.share)}</small>
+          </div>
+        ))}
+      </div>
+
+      <div className="soft-note">
+        อาบน้ำ / ตัดขน {formatCount(groomingBookings)} คิว และโรงแรม / ฝากเลี้ยง {formatCount(hotelBookings)} คิวในช่วงนี้
       </div>
     </section>
   );
@@ -172,30 +327,27 @@ function MixChips({ title, items }: { title: string; items: MarketingMixRow[] })
 function CustomerActionTable({
   title,
   subtitle,
+  description,
   rows,
   showWinBack = false
 }: {
   title: string;
   subtitle: string;
+  description: string;
   rows: MarketingCustomerRow[];
   showWinBack?: boolean;
 }) {
   return (
     <section className="panel stack marketing-panel">
-      <div className="frontdesk-section-heading">
-        <div>
-          <div className="section-kicker">{title}</div>
-          <h2 className="section-title">{subtitle}</h2>
-        </div>
-      </div>
+      <SectionIntro eyebrow={title} title={subtitle} copy={description} />
 
       {rows.length ? (
         <div className="marketing-table">
           <div className="marketing-table-head marketing-customer-grid">
-            <span>Customer</span>
-            <span>Visits</span>
-            <span>Spend</span>
-            <span>Last seen</span>
+            <span>ลูกค้า</span>
+            <span>จำนวนคิว</span>
+            <span>ยอดใช้บริการ</span>
+            <span>ล่าสุด</span>
           </div>
 
           {rows.map((row) => (
@@ -205,16 +357,20 @@ function CustomerActionTable({
                 <span>{row.pet_summary}</span>
                 {showWinBack && row.win_back_segment ? (
                   <div className="marketing-badge-row">
-                    <span className={`marketing-badge marketing-badge-${row.win_back_segment}`}>{row.win_back_segment}</span>
-                    {row.is_at_risk ? <span className="marketing-badge marketing-badge-risk">at risk</span> : null}
+                    <span className={`marketing-badge marketing-badge-${row.win_back_segment}`}>{winBackSegmentLabels[row.win_back_segment]}</span>
+                    {row.is_at_risk ? <span className="marketing-badge marketing-badge-risk">ควรรีบตาม</span> : null}
                   </div>
                 ) : null}
               </div>
-              <span>{formatCount(row.booking_count)}</span>
-              <span>{formatBaht(row.total_spend)}</span>
-              <span>
-                {row.last_booking_at ? row.last_booking_at.slice(0, 10) : "-"}
-                {showWinBack && row.days_since_last_booking !== null ? <small>{row.days_since_last_booking} days</small> : null}
+              <span className="marketing-table-cell" data-label="จำนวนคิว">
+                {formatCount(row.booking_count)}
+              </span>
+              <span className="marketing-table-cell" data-label="ยอดใช้บริการ">
+                {formatBaht(row.total_spend)}
+              </span>
+              <span className="marketing-table-cell marketing-table-date" data-label="ล่าสุด">
+                {formatLastSeen(row.last_booking_at)}
+                {showWinBack && row.days_since_last_booking !== null ? <small>ห่าง {formatCount(row.days_since_last_booking)} วัน</small> : null}
               </span>
             </PendingLink>
           ))}
@@ -228,48 +384,53 @@ function CustomerActionTable({
 
 function ServiceRoomPanel({ services, rooms }: { services: MarketingServiceRow[]; rooms: MarketingRoomRow[] }) {
   return (
-    <section className="panel stack marketing-panel">
-      <div className="frontdesk-section-heading">
-        <div>
-          <div className="section-kicker">Top performers</div>
-          <h2 className="section-title">Top services / rooms</h2>
-        </div>
-      </div>
+    <section className="panel stack marketing-panel marketing-wide-panel">
+      <SectionIntro eyebrow="บริการและห้อง" title="บริการ / ห้องที่ทำรายได้ดี" copy="ดูรายการที่สร้างรายได้สูง เพื่อช่วยวางแผนราคาและโปรโมชันต่อ" />
 
       <div className="marketing-subsection">
         <div className="marketing-subsection-head">
-          <Scissors size={16} strokeWidth={2.1} />
-          <strong>Services</strong>
+          <div className="marketing-subsection-title">
+            <Scissors size={16} strokeWidth={2.1} />
+            <strong>บริการยอดนิยม</strong>
+          </div>
         </div>
         {services.length ? (
           <div className="marketing-table">
             <div className="marketing-table-head marketing-service-grid">
-              <span>Service</span>
-              <span>Qty</span>
-              <span>Revenue</span>
-              <span>Share</span>
+              <span>บริการ</span>
+              <span>จำนวน</span>
+              <span>รายได้</span>
+              <span>สัดส่วน</span>
             </div>
             {services.slice(0, 6).map((service) => (
               <div key={service.service_name} className="marketing-table-row marketing-service-grid">
                 <div className="marketing-table-primary">
                   <strong>{service.service_name}</strong>
-                  <span>{formatCount(service.booking_count)} bookings</span>
+                  <span>{formatCount(service.booking_count)} คิว</span>
                 </div>
-                <span>{formatCount(service.quantity)}</span>
-                <span>{formatBaht(service.revenue)}</span>
-                <span>{formatPercent(service.revenue_share)}</span>
+                <span className="marketing-table-cell" data-label="จำนวน">
+                  {formatCount(service.quantity)}
+                </span>
+                <span className="marketing-table-cell" data-label="รายได้">
+                  {formatBaht(service.revenue)}
+                </span>
+                <span className="marketing-table-cell" data-label="สัดส่วน">
+                  {formatPercent(service.revenue_share)}
+                </span>
               </div>
             ))}
           </div>
         ) : (
-          <div className="soft-note">ยังไม่มี service mix สำหรับช่วงนี้</div>
+          <div className="soft-note">ยังไม่มีข้อมูลบริการในช่วงนี้</div>
         )}
       </div>
 
       <div className="marketing-subsection">
         <div className="marketing-subsection-head">
-          <Hotel size={16} strokeWidth={2.1} />
-          <strong>Rooms</strong>
+          <div className="marketing-subsection-title">
+            <Hotel size={16} strokeWidth={2.1} />
+            <strong>ห้องพักยอดนิยม</strong>
+          </div>
           <PendingLink className="tap-row-link" href="/rooms">
             <span>ดูห้องทั้งหมด</span>
             <span aria-hidden="true">›</span>
@@ -278,25 +439,31 @@ function ServiceRoomPanel({ services, rooms }: { services: MarketingServiceRow[]
         {rooms.length ? (
           <div className="marketing-table">
             <div className="marketing-table-head marketing-room-grid">
-              <span>Room</span>
-              <span>Bookings</span>
-              <span>Nights</span>
-              <span>Revenue</span>
+              <span>ห้องพัก</span>
+              <span>คิว</span>
+              <span>คืน</span>
+              <span>รายได้</span>
             </div>
             {rooms.slice(0, 6).map((room) => (
               <div key={room.room_name} className="marketing-table-row marketing-room-grid">
                 <div className="marketing-table-primary">
                   <strong>{room.room_name}</strong>
-                  <span>{formatPercent(room.revenue_share)} of hotel revenue</span>
+                  <span>{formatPercent(room.revenue_share)} ของรายได้โรงแรม</span>
                 </div>
-                <span>{formatCount(room.booking_count)}</span>
-                <span>{formatCount(room.nights)}</span>
-                <span>{formatBaht(room.revenue)}</span>
+                <span className="marketing-table-cell" data-label="คิว">
+                  {formatCount(room.booking_count)}
+                </span>
+                <span className="marketing-table-cell" data-label="คืน">
+                  {formatCount(room.nights)}
+                </span>
+                <span className="marketing-table-cell" data-label="รายได้">
+                  {formatBaht(room.revenue)}
+                </span>
               </div>
             ))}
           </div>
         ) : (
-          <div className="soft-note">ยังไม่มี room mix สำหรับช่วงนี้</div>
+          <div className="soft-note">ยังไม่มีข้อมูลห้องพักในช่วงนี้</div>
         )}
       </div>
     </section>
@@ -304,31 +471,36 @@ function ServiceRoomPanel({ services, rooms }: { services: MarketingServiceRow[]
 }
 
 function PaymentSignals({ items }: { items: MarketingPaymentMethodRow[] }) {
+  const visibleItems = items.filter((item) => item.amount > 0);
+
   return (
     <section className="panel stack marketing-panel">
-      <div className="frontdesk-section-heading">
-        <div>
-          <div className="section-kicker">Payments</div>
-          <h2 className="section-title">Payment method mix</h2>
-        </div>
-      </div>
+      <SectionIntro eyebrow="การรับเงิน" title="ช่องทางรับเงิน" copy="ดูว่าเงินเข้าช่องทางไหนมากที่สุดในช่วงที่เลือก" />
 
-      <div className="marketing-table">
-        <div className="marketing-table-head marketing-payment-grid">
-          <span>Method</span>
-          <span>Amount</span>
-          <span>Share</span>
-        </div>
-        {items.map((item) => (
-          <div key={item.payment_method} className="marketing-table-row marketing-payment-grid">
-            <div className="marketing-table-primary">
-              <strong>{paymentMethodLabels[item.payment_method] ?? item.payment_method}</strong>
-            </div>
-            <span>{formatBaht(item.amount)}</span>
-            <span>{formatPercent(item.share)}</span>
+      {visibleItems.length ? (
+        <div className="marketing-table">
+          <div className="marketing-table-head marketing-payment-grid">
+            <span>ช่องทาง</span>
+            <span>ยอดเงิน</span>
+            <span>สัดส่วน</span>
           </div>
-        ))}
-      </div>
+          {visibleItems.map((item) => (
+            <div key={item.payment_method} className="marketing-table-row marketing-payment-grid">
+              <div className="marketing-table-primary">
+                <strong>{paymentMethodLabels[item.payment_method] ?? item.payment_method}</strong>
+              </div>
+              <span className="marketing-table-cell" data-label="ยอดเงิน">
+                {formatBaht(item.amount)}
+              </span>
+              <span className="marketing-table-cell" data-label="สัดส่วน">
+                {formatPercent(item.share)}
+              </span>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="soft-note">ยังไม่มีรายการรับเงินในช่วงนี้</div>
+      )}
     </section>
   );
 }
@@ -340,8 +512,8 @@ export default async function MarketingPage({
 }) {
   if (!hasSupabaseEnv()) {
     return (
-      <main className="stack">
-        <PageHeader title="Marketing Insights" subtitle="ดูสัญญาณลูกค้า การกลับมาใช้ซ้ำ demand และ payment mix จากข้อมูลที่มีอยู่แล้ว" />
+      <main className="stack marketing-page">
+        <PageHeader title="ภาพรวมธุรกิจ" subtitle="สรุปยอดขาย คิว ลูกค้า และช่วงที่คนใช้บริการจากข้อมูลที่มีอยู่แล้ว" />
         <SetupNotice />
       </main>
     );
@@ -355,28 +527,28 @@ export default async function MarketingPage({
   const hasCompletedBookings = dashboard.summary.completed_bookings > 0;
 
   return (
-    <main className="stack">
+    <main className="stack marketing-page">
       <PageHeader
-        title="Marketing Insights"
-        subtitle="ภาพรวมเชิงการตลาดสำหรับผู้บริหาร: ลูกค้าใหม่-เก่า รีเทนชัน demand บริการเด่น และสัญญาณการติดตามต่อ"
+        title="ภาพรวมธุรกิจ"
+        subtitle="ดูยอดขาย จำนวนคิว ลูกค้าใหม่ ลูกค้ากลับมาซ้ำ และสัญญาณที่ควรดูต่อในหน้าจอเดียว"
         actionLabel="ดูรายงานการเงิน"
         actionHref="/finance/report"
       />
 
-      <section className="panel stack marketing-toolbar">
+      <section className="panel stack marketing-toolbar" aria-labelledby="marketing-filter-title">
         <div className="marketing-toolbar-top">
           <div>
             <div className="section-kicker">
-              <Megaphone size={14} strokeWidth={2.2} />
-              <span>Filter</span>
+              <CalendarDays size={14} strokeWidth={2.2} />
+              <span>ช่วงที่กำลังดู</span>
             </div>
-            <h2 className="section-title" style={{ marginTop: 8 }}>
+            <h2 id="marketing-filter-title" className="section-title">
               {formatFilterLabel(filters)}
             </h2>
-            <p className="marketing-toolbar-copy">กำลังดู {bookingTypeLabels[filters.bookingType]} เพื่ออ่านภาพรวม demand, repeat behavior และ action list ที่ควรทำต่อ</p>
+            <p className="marketing-toolbar-copy">กำลังดูบริการ: {bookingTypeLabels[filters.bookingType]}</p>
           </div>
 
-          <div className="btn-grid">
+          <div className="btn-grid marketing-toolbar-actions">
             <Link className="btn btn-secondary" href="/customers">
               รายชื่อลูกค้า
             </Link>
@@ -386,185 +558,215 @@ export default async function MarketingPage({
           </div>
         </div>
 
-        <form className="stack" method="get">
-          <div className="finance-report-mode-tabs">
-            <Link className={`finance-report-mode-tab ${filters.mode === "range" ? "finance-report-mode-tab-active" : ""}`} href={buildSearchHref(filters, "range")}>
-              ช่วงวันที่
-            </Link>
-            <Link className={`finance-report-mode-tab ${filters.mode === "month" ? "finance-report-mode-tab-active" : ""}`} href={buildSearchHref(filters, "month")}>
-              รายเดือน
-            </Link>
-          </div>
+        <details className="marketing-filter-details">
+          <summary className="marketing-filter-summary">
+            <span>ปรับช่วง / ประเภทบริการ</span>
+            <span aria-hidden="true">›</span>
+          </summary>
 
-          <input type="hidden" name="mode" value={filters.mode} />
-
-          <label className="label">
-            ประเภท booking
-            <select className="select" name="bookingType" defaultValue={filters.bookingType}>
-              <option value="all">ทุกประเภท</option>
-              <option value="grooming">Grooming</option>
-              <option value="hotel">Hotel</option>
-            </select>
-          </label>
-
-          {filters.mode === "month" ? (
-            <label className="label">
-              เดือน
-              <input className="input" type="month" name="month" defaultValue={filters.monthValue} />
-            </label>
-          ) : (
-            <div className="grid-2">
-              <label className="label">
-                วันที่เริ่ม
-                <input className="input" type="date" name="start" defaultValue={filters.startDate} />
-              </label>
-              <label className="label">
-                วันที่สิ้นสุด
-                <input className="input" type="date" name="end" defaultValue={filters.endDate} />
-              </label>
+          <form className="stack marketing-filter-form" method="get">
+            <div className="finance-report-mode-tabs marketing-mode-tabs">
+              <Link className={`finance-report-mode-tab ${filters.mode === "range" ? "finance-report-mode-tab-active" : ""}`} href={buildSearchHref(filters, "range")}>
+                ช่วงวันที่
+              </Link>
+              <Link className={`finance-report-mode-tab ${filters.mode === "month" ? "finance-report-mode-tab-active" : ""}`} href={buildSearchHref(filters, "month")}>
+                รายเดือน
+              </Link>
             </div>
-          )}
 
-          <button className="btn btn-primary" type="submit">
-            อัปเดต dashboard
-          </button>
-        </form>
+            <input type="hidden" name="mode" value={filters.mode} />
+
+            <label className="label">
+              ประเภทบริการ
+              <select className="select" name="bookingType" defaultValue={filters.bookingType}>
+                <option value="all">ทั้งหมด</option>
+                <option value="grooming">อาบน้ำ / ตัดขน</option>
+                <option value="hotel">โรงแรม / ฝากเลี้ยง</option>
+              </select>
+            </label>
+
+            {filters.mode === "month" ? (
+              <label className="label">
+                เดือน
+                <input className="input" type="month" name="month" defaultValue={filters.monthValue} />
+              </label>
+            ) : (
+              <div className="grid-2">
+                <label className="label">
+                  วันที่เริ่ม
+                  <input className="input" type="date" name="start" defaultValue={filters.startDate} />
+                </label>
+                <label className="label">
+                  วันที่สิ้นสุด
+                  <input className="input" type="date" name="end" defaultValue={filters.endDate} />
+                </label>
+              </div>
+            )}
+
+            <button className="btn btn-primary" type="submit">
+              ดูข้อมูลช่วงนี้
+            </button>
+          </form>
+        </details>
       </section>
 
-      <section className="marketing-kpi-grid">
-        <MetricCard
-          label="ลูกค้าใหม่"
-          value={formatCount(dashboard.summary.new_customers)}
-          detail="ลูกค้าที่ถูกสร้างในช่วงนี้และมี completed booking ตาม filter"
-          icon={<Users size={18} strokeWidth={2.1} />}
-        />
-        <MetricCard
-          label="ลูกค้าที่ใช้งาน"
-          value={formatCount(dashboard.summary.active_customers)}
-          detail="จำนวนลูกค้าที่มี completed booking ในช่วงนี้"
-          icon={<BarChart3 size={18} strokeWidth={2.1} />}
-        />
-        <MetricCard
-          label="Repeat customers"
-          value={formatCount(dashboard.summary.repeat_customers)}
-          tone="success"
-          detail={`คิดเป็น ${formatPercent(dashboard.summary.repeat_rate)} ของลูกค้าที่ใช้งาน`}
-          icon={<Repeat2 size={18} strokeWidth={2.1} />}
-        />
-        <MetricCard
-          label="Completed bookings"
-          value={formatCount(dashboard.summary.completed_bookings)}
-          detail="ฐานหลักสำหรับการอ่าน demand และ performance"
-          icon={<Clock3 size={18} strokeWidth={2.1} />}
-        />
-        <MetricCard
-          label="Revenue from bookings"
-          value={formatBaht(dashboard.summary.revenue)}
-          tone="success"
-          detail="ใช้ยอด booking total_amount สำหรับมุมมอง marketing"
-          icon={<Coins size={18} strokeWidth={2.1} />}
-        />
-        <MetricCard
-          label="Average order value"
-          value={formatBaht(dashboard.summary.average_order_value)}
-          detail="รายได้เฉลี่ยต่อ completed booking"
-          icon={<BarChart3 size={18} strokeWidth={2.1} />}
-        />
-        <MetricCard
-          label="Cancellation rate"
-          value={formatPercent(dashboard.summary.cancellation_rate)}
-          tone={dashboard.summary.cancellation_rate >= 0.15 ? "danger" : "warning"}
-          detail="เทียบ booking cancelled กับ booking ทั้งหมดในช่วง"
-          icon={<TriangleAlert size={18} strokeWidth={2.1} />}
-        />
-        <MetricCard
-          label="Pending payment"
-          value={formatCount(dashboard.summary.pending_payment_count)}
-          tone={dashboard.summary.pending_payment_count > 0 ? "warning" : "success"}
-          detail={`${formatBaht(dashboard.summary.pending_payment_amount)} ที่ยังเก็บไม่ครบ`}
-          icon={<CreditCard size={18} strokeWidth={2.1} />}
-        />
-      </section>
+      <BusinessSnapshot summary={dashboard.summary} />
 
       {!hasCompletedBookings ? (
         <EmptyState
           icon={<Megaphone size={24} strokeWidth={2.1} />}
-          title="ยังไม่มี completed booking ในช่วงที่เลือก"
-          description="ลองขยายช่วงวันที่หรือเปลี่ยน filter ประเภท booking เพื่อดู insight เพิ่มเติม"
+          title="ยังไม่มีคิวที่เสร็จแล้วในช่วงที่เลือก"
+          description="ลองขยายช่วงวันที่ หรือเปลี่ยนประเภทบริการ เพื่อให้ระบบมีข้อมูลพอสำหรับสรุปภาพรวมธุรกิจ"
           action={
             <PendingLink className="btn btn-secondary" href="/marketing">
-              กลับค่าเริ่มต้น 90 วัน
+              กลับไปดู 90 วันล่าสุด
             </PendingLink>
           }
         />
       ) : (
         <>
-          <section className="marketing-grid">
-            <section className="panel stack marketing-panel">
-              <div className="frontdesk-section-heading">
-                <div>
-                  <div className="section-kicker">Demand & mix</div>
-                  <h2 className="section-title">Booking mix</h2>
-                </div>
-              </div>
-
-              <div className="marketing-chip-grid">
-                {dashboard.booking_mix.map((item) => (
-                  <div key={item.key} className="marketing-chip-card">
-                    <strong>{item.label}</strong>
-                    <span>{formatCount(item.count)} bookings</span>
-                    <small>{formatPercent(item.share)}</small>
-                  </div>
-                ))}
-              </div>
-
-              <div className="soft-note">
-                Grooming {formatCount(dashboard.summary.grooming_bookings)} รายการ และ Hotel {formatCount(dashboard.summary.hotel_bookings)} รายการในช่วงนี้
-              </div>
+          <section className="marketing-section-stack">
+            <SectionIntro
+              eyebrow="สุขภาพรายได้"
+              title="เงินเข้าและคุณภาพคิว"
+              copy="ดูยอดรับเงินจริง ค่าเฉลี่ยต่อคิว ยอดที่ยังค้าง และอัตรายกเลิกในช่วงเดียวกัน"
+              icon={<Coins size={16} strokeWidth={2.1} />}
+            />
+            <section className="marketing-kpi-grid marketing-secondary-kpi-grid">
+              <MetricCard
+                label="รับเงินแล้ว"
+                value={formatBaht(dashboard.summary.income_collected)}
+                tone="success"
+                detail="อิงจากรายการรับเงินที่บันทึกไว้จริง"
+                icon={<Coins size={18} strokeWidth={2.1} />}
+              />
+              <MetricCard
+                label="เฉลี่ยต่อคิว"
+                value={formatBaht(dashboard.summary.average_order_value)}
+                detail="รายได้เฉลี่ยของคิวที่เสร็จแล้ว"
+                icon={<BarChart3 size={18} strokeWidth={2.1} />}
+              />
+              <MetricCard
+                label="รอเก็บเงิน"
+                value={`${formatCount(dashboard.summary.pending_payment_count)} คิว`}
+                tone={dashboard.summary.pending_payment_count > 0 ? "warning" : "success"}
+                detail={`${formatBaht(dashboard.summary.pending_payment_amount)} ที่ยังเก็บไม่ครบ`}
+                icon={<CreditCard size={18} strokeWidth={2.1} />}
+              />
+              <MetricCard
+                label="คิวยกเลิก"
+                value={formatPercent(dashboard.summary.cancellation_rate)}
+                tone={dashboard.summary.cancellation_rate >= 0.15 ? "danger" : "warning"}
+                detail="เทียบคิวที่ยกเลิกกับคิวทั้งหมดในช่วงนี้"
+                icon={<TriangleAlert size={18} strokeWidth={2.1} />}
+              />
             </section>
-
-            <InsightBars title="Demand" subtitle="Weekday demand" items={dashboard.weekday_demand} />
-            <InsightBars title="Demand" subtitle="Hour demand" items={dashboard.hour_demand} />
-          </section>
-
-          <section className="marketing-grid">
-            <MixChips title="Species mix" items={dashboard.species_mix} />
-            <MixChips title="Breed mix" items={dashboard.breed_mix} />
             <PaymentSignals items={dashboard.payment_methods} />
           </section>
 
-          <section className="marketing-kpi-grid">
-            <MetricCard
-              label="Returning customers"
-              value={formatCount(dashboard.summary.returning_customers)}
-              detail="ลูกค้าที่กลับมาใช้บริการและไม่ได้ถูกสร้างใหม่ในช่วงนี้"
-              icon={<Users size={18} strokeWidth={2.1} />}
+          <section className="marketing-section-stack">
+            <SectionIntro
+              eyebrow="ความต้องการ"
+              title="ลูกค้ามาใช้บริการช่วงไหน"
+              copy="ดูประเภทบริการ วันที่ขายดี และช่วงเวลาที่มีคิวมาก เพื่อช่วยจัดคนและโปรโมชัน"
+              icon={<Clock3 size={16} strokeWidth={2.1} />}
             />
-            <MetricCard
-              label="Income collected"
-              value={formatBaht(dashboard.summary.income_collected)}
-              tone="success"
-              detail="อิง cash_transactions ฝั่ง income เพื่อดูเงินที่รับจริง"
-              icon={<Coins size={18} strokeWidth={2.1} />}
-            />
-            <MetricCard
-              label="Win-back candidates"
-              value={formatCount(dashboard.win_back_customers.length)}
-              tone={dashboard.win_back_customers.length > 0 ? "warning" : "success"}
-              detail="รายชื่อลูกค้าที่หายไปเกิน 30 วันและควรติดตาม"
-              icon={<Megaphone size={18} strokeWidth={2.1} />}
-            />
+            <section className="marketing-grid marketing-demand-grid">
+              <BookingMixPanel items={dashboard.booking_mix} groomingBookings={dashboard.summary.grooming_bookings} hotelBookings={dashboard.summary.hotel_bookings} />
+              <InsightBars title="วันที่ขายดี" subtitle="คิวตามวันในสัปดาห์" description="ดูว่าวันไหนมีคิวและรายได้มากกว่ากัน" items={dashboard.weekday_demand} />
+              <InsightBars title="เวลาขายดี" subtitle="คิวตามช่วงเวลา" description="ดูช่วงเวลาที่ลูกค้ามาใช้บริการมากที่สุด" items={dashboard.hour_demand} />
+            </section>
           </section>
 
-          <section className="marketing-action-grid">
-            <CustomerActionTable title="Action list" subtitle="Win-back customers" rows={dashboard.win_back_customers} showWinBack />
-            <CustomerActionTable title="Top customers" subtitle="Highest spend this period" rows={dashboard.top_customers_by_spend} />
-            <ServiceRoomPanel services={dashboard.top_services} rooms={dashboard.top_rooms} />
+          <section className="marketing-section-stack">
+            <SectionIntro
+              eyebrow="ลูกค้า"
+              title="ลูกค้าและการกลับมาใช้บริการ"
+              copy="ดูจำนวนลูกค้าเก่า ลูกค้าที่มาซ้ำ และรายชื่อที่ควรดูแลต่อ"
+              icon={<Users size={16} strokeWidth={2.1} />}
+            />
+            <section className="marketing-kpi-grid marketing-secondary-kpi-grid">
+              <MetricCard
+                label="ลูกค้าเก่า"
+                value={`${formatCount(dashboard.summary.returning_customers)} คน`}
+                detail="ลูกค้าที่กลับมาใช้บริการและไม่ได้ถูกสร้างใหม่ในช่วงนี้"
+                icon={<Users size={18} strokeWidth={2.1} />}
+              />
+              <MetricCard
+                label="ลูกค้าที่มาซ้ำ"
+                value={`${formatCount(dashboard.summary.repeat_customers)} คน`}
+                tone="success"
+                detail={`คิดเป็น ${formatPercent(dashboard.summary.repeat_rate)} ของลูกค้าที่มาใช้บริการ`}
+                icon={<Repeat2 size={18} strokeWidth={2.1} />}
+              />
+              <MetricCard
+                label="ควรตามกลับ"
+                value={`${formatCount(dashboard.win_back_customers.length)} คน`}
+                tone={dashboard.win_back_customers.length > 0 ? "warning" : "success"}
+                detail="ลูกค้าที่หายไปเกิน 30 วันและน่าติดต่อดูแลต่อ"
+                icon={<Megaphone size={18} strokeWidth={2.1} />}
+              />
+            </section>
+
+            <section className="marketing-action-grid">
+              <CustomerActionTable
+                title="ลูกค้าควรดูแลต่อ"
+                subtitle="ลูกค้าที่หายไปนาน"
+                description="เริ่มจากกลุ่มนี้ถ้าต้องการโทรหรือทักกลับ"
+                rows={dashboard.win_back_customers}
+                showWinBack
+              />
+              <CustomerActionTable
+                title="ลูกค้ามูลค่าสูง"
+                subtitle="ใช้บริการมากสุดตามยอดเงิน"
+                description="ลูกค้าที่สร้างรายได้สูงในช่วงที่เลือก"
+                rows={dashboard.top_customers_by_spend}
+              />
+              <CustomerActionTable
+                title="ลูกค้าที่มาบ่อย"
+                subtitle="ใช้บริการถี่ที่สุด"
+                description="ลูกค้าที่กลับมาใช้บริการหลายครั้งในช่วงนี้"
+                rows={dashboard.top_customers_by_frequency}
+              />
+            </section>
+
+            <section className="marketing-single-panel-grid">
+              <CustomerActionTable
+                title="ลูกค้าเสี่ยงหาย"
+                subtitle="เคยใช้บ่อยแต่เงียบไป"
+                description="ลูกค้าที่เคยใช้บริการหลายครั้งและห่างไปนาน ควรดูแลก่อนหลุดไป"
+                rows={dashboard.at_risk_customers}
+                showWinBack
+              />
+            </section>
           </section>
 
-          <section className="marketing-grid">
-            <CustomerActionTable title="Frequent" subtitle="Most frequent customers this period" rows={dashboard.top_customers_by_frequency} />
-            <CustomerActionTable title="At risk" subtitle="High-usage customers who have gone quiet" rows={dashboard.at_risk_customers} showWinBack />
+          <section className="marketing-section-stack">
+            <SectionIntro
+              eyebrow="บริการและห้อง"
+              title="อะไรขายดีในช่วงนี้"
+              copy="ดูประเภทสัตว์ สายพันธุ์ บริการ และห้องพักที่พบมาก เพื่อช่วยวางแผนร้าน"
+              icon={<Scissors size={16} strokeWidth={2.1} />}
+            />
+            <section className="marketing-grid">
+              <MixChips
+                eyebrow="ประเภทสัตว์"
+                title="สัตว์ที่มาใช้บริการ"
+                description="ดูว่าสัตว์ประเภทไหนเข้าร้านมากที่สุด"
+                items={dashboard.species_mix}
+                valueLabel="ตัว"
+                emptyText="ยังไม่มีข้อมูลประเภทสัตว์ในช่วงนี้"
+              />
+              <MixChips
+                eyebrow="สายพันธุ์"
+                title="สายพันธุ์ที่พบบ่อย"
+                description="ช่วยดูแนวโน้มลูกค้าและบริการที่อาจต้องเตรียมเพิ่ม"
+                items={dashboard.breed_mix}
+                valueLabel="ตัว"
+                emptyText="ยังไม่มีข้อมูลสายพันธุ์ในช่วงนี้"
+              />
+              <ServiceRoomPanel services={dashboard.top_services} rooms={dashboard.top_rooms} />
+            </section>
           </section>
         </>
       )}

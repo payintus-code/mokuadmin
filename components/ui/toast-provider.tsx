@@ -59,7 +59,17 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const originalPushState = window.history.pushState;
     const originalReplaceState = window.history.replaceState;
-    const notifyUrlChange = () => window.dispatchEvent(new Event("moku:urlchange"));
+    let urlChangeTimer: number | null = null;
+    const notifyUrlChange = () => {
+      if (urlChangeTimer !== null) {
+        window.clearTimeout(urlChangeTimer);
+      }
+
+      urlChangeTimer = window.setTimeout(() => {
+        urlChangeTimer = null;
+        window.dispatchEvent(new Event("moku:urlchange"));
+      }, 0);
+    };
 
     window.history.pushState = function pushState(...args) {
       const result = originalPushState.apply(this, args);
@@ -78,6 +88,10 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     readToastFromUrl();
 
     return () => {
+      if (urlChangeTimer !== null) {
+        window.clearTimeout(urlChangeTimer);
+      }
+
       window.history.pushState = originalPushState;
       window.history.replaceState = originalReplaceState;
       window.removeEventListener("popstate", readToastFromUrl);

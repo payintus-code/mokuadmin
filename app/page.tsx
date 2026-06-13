@@ -7,10 +7,12 @@ import { PendingLink } from "@/components/ui/pending-link";
 import { SetupNotice } from "@/components/ui/setup-notice";
 import { requireAppUser } from "@/lib/auth";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { BookingQuickActions } from "@/components/ui/booking-quick-actions";
 import { hasSupabaseEnv } from "@/lib/env";
 import { getDailySchedule } from "@/lib/bookings";
 import { formatBaht, formatDateInput, formatTime } from "@/lib/format";
 import { getFinanceSummary } from "@/lib/finance";
+import { buildTodayWorkQueue, buildWorkRiskAlerts, isOperationalBooking } from "@/lib/frontdesk-work";
 import { createClient } from "@/lib/supabase/server";
 import type { DailyScheduleItem } from "@/types/database";
 
@@ -48,17 +50,49 @@ const bookingTypeLabel = {
   hotel: "โรงแรม"
 } as const;
 
-function isOperationalBooking(item: DailyScheduleItem) {
-  return item.status !== "done" && item.status !== "cancelled";
-}
-
-function getNextBookings(schedule: DailyScheduleItem[]) {
+function summarizeDashboardSchedule(schedule: DailyScheduleItem[]) {
   const now = Date.now();
-  const activeOrUpcoming = schedule
-    .filter((item) => isOperationalBooking(item) && new Date(item.end_at).getTime() >= now)
-    .sort((left, right) => new Date(left.start_at).getTime() - new Date(right.start_at).getTime());
+  const activeOrUpcoming: DailyScheduleItem[] = [];
+  const operationalItems: DailyScheduleItem[] = [];
+  const occupiedRoomNames = new Set<string>();
+  let doneCount = 0;
+  let unpaidCount = 0;
 
-  return (activeOrUpcoming.length ? activeOrUpcoming : schedule.filter(isOperationalBooking)).slice(0, 5);
+  for (const item of schedule) {
+    const isOperational = isOperationalBooking(item);
+
+    if (isOperational) {
+      operationalItems.push(item);
+
+      if (new Date(item.end_at).getTime() >= now) {
+        activeOrUpcoming.push(item);
+      }
+
+      if (item.booking_type === "hotel" && item.room_name) {
+        occupiedRoomNames.add(item.room_name);
+      }
+    }
+
+    if (item.status === "done") {
+      doneCount += 1;
+    }
+
+    if (item.payment_status === "pending" && item.status !== "cancelled") {
+      unpaidCount += 1;
+    }
+  }
+
+  activeOrUpcoming.sort((left, right) => new Date(left.start_at).getTime() - new Date(right.start_at).getTime());
+  operationalItems.sort((left, right) => new Date(left.start_at).getTime() - new Date(right.start_at).getTime());
+
+  return {
+    totalCount: schedule.length,
+    operationalCount: operationalItems.length,
+    doneCount,
+    unpaidCount,
+    occupiedRoomCount: occupiedRoomNames.size,
+    nextBookings: (activeOrUpcoming.length ? activeOrUpcoming : operationalItems).slice(0, 5)
+  };
 }
 
 function getUrgentWorkItems(schedule: DailyScheduleItem[]) {
@@ -122,19 +156,12 @@ export default async function DashboardPage() {
     currentUser.role === "admin" ? getFinanceSummary(today) : Promise.resolve(null)
   ]);
 
-  const totalCount = schedule.length;
-  const operationalCount = schedule.filter(isOperationalBooking).length;
-  const doneCount = schedule.filter((item) => item.status === "done").length;
-  const unpaidCount = schedule.filter((item) => item.payment_status === "pending" && item.status !== "cancelled").length;
-
-  const nextBookings = getNextBookings(schedule);
+  const scheduleSummary = summarizeDashboardSchedule(schedule);
+  const { totalCount, operationalCount, doneCount, unpaidCount, occupiedRoomCount, nextBookings } = scheduleSummary;
   const urgentItems = getUrgentWorkItems(schedule);
+  const workQueue = buildTodayWorkQueue(schedule);
+  const riskAlerts = buildWorkRiskAlerts(schedule);
 
-  const occupiedRoomCount = new Set(
-    schedule
-      .filter((item) => item.booking_type === "hotel" && isOperationalBooking(item) && item.room_name)
-      .map((item) => item.room_name)
-  ).size;
   const totalRooms = roomsResult.count ?? 0;
   const availableRoomCount = Math.max(totalRooms - occupiedRoomCount, 0);
   const visibleQuickLinks = currentUser.role === "admin" ? quickLinks : quickLinks.filter((item) => item.href !== "/finance");
@@ -190,6 +217,86 @@ export default async function DashboardPage() {
             icon={<Coins size={18} strokeWidth={2.1} />}
           />
         ) : null}
+      </section>
+
+      {riskAlerts.length ? (
+        <section className="panel stack">
+          <div className="frontdesk-section-heading">
+            <div>
+              <div className="section-kicker">Risk Alerts</div>
+              <h2 className="section-title">งานที่ควรเช็กก่อนพลาด</h2>
+            </div>
+          </div>
+
+          <div className="work-alert-grid">
+            {riskAlerts.map((alert) => (
+              <article key={alert.key} className={`work-alert-card work-alert-card-${alert.tone}`}>
+                <div>
+                  <strong>{alert.title}</strong>
+                  <div className="muted">{alert.description}</div>
+                </div>
+                <Link className="tap-row-link" href={`/bookings/${alert.item.booking_id}`}>
+                  <span>เปิดคิว</span>
+                  <span aria-hidden="true">›</span>
+                </Link>
+              </article>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      <section className="panel stack">
+        <div className="frontdesk-section-heading">
+          <div>
+            <div className="section-kicker">Today Work Queue</div>
+            <h2 className="section-title">งานหน้าร้านวันนี้</h2>
+          </div>
+          <Link className="tap-row-link" href="/schedule">
+            <span>ไปตารางวันนี้</span>
+            <span aria-hidden="true">›</span>
+          </Link>
+        </div>
+
+        <div className="work-queue-grid">
+          {workQueue.map((bucket) => (
+            <section key={bucket.key} className="work-queue-column">
+              <div className="work-queue-head">
+                <div>
+                  <strong>{bucket.title}</strong>
+                  <p>{bucket.description}</p>
+                </div>
+                <span>{bucket.items.length}</span>
+              </div>
+
+              {bucket.items.length ? (
+                <div className="stack">
+                  {bucket.items.slice(0, 4).map((item) => (
+                    <article key={`${bucket.key}-${item.booking_id}`} className="work-queue-item">
+                      <div className="work-queue-item-top">
+                        <div>
+                          <strong>{formatTime(item.start_at)} {item.pet_name}</strong>
+                          <div className="muted">{item.customer_name}</div>
+                        </div>
+                        <StatusBadge status={item.status} />
+                      </div>
+                      <div className="muted">{item.room_name || item.services_summary || item.booking_no}</div>
+                      <BookingQuickActions
+                        bookingId={item.booking_id}
+                        status={item.status}
+                        paymentStatus={item.payment_status}
+                        customerPhone={item.customer_phone}
+                        showReceipt={false}
+                        compact
+                      />
+                    </article>
+                  ))}
+                </div>
+              ) : (
+                <div className="soft-note">ไม่มีรายการในกลุ่มนี้</div>
+              )}
+            </section>
+          ))}
+        </div>
       </section>
 
       <section className="frontdesk-main-grid">
@@ -251,12 +358,14 @@ export default async function DashboardPage() {
                     <div className="frontdesk-booking-footer">
                       <span className="muted">รวม {formatBaht(item.total_amount)}</span>
                       <div className="frontdesk-booking-actions">
-                        <Link className="btn btn-secondary" href={`/bookings/${item.booking_id}`}>
-                          รายละเอียด
-                        </Link>
-                        <Link className="btn btn-secondary" href={`/payments/${item.booking_id}`}>
-                          รับชำระเงิน
-                        </Link>
+                        <BookingQuickActions
+                          bookingId={item.booking_id}
+                          status={item.status}
+                          paymentStatus={item.payment_status}
+                          customerPhone={item.customer_phone}
+                          showReceipt={false}
+                          compact
+                        />
                       </div>
                     </div>
                   </article>

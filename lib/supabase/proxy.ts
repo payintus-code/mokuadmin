@@ -1,9 +1,15 @@
 import { createServerClient } from "@supabase/ssr";
 import type { CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
-import { getSupabasePublicKey } from "@/lib/env";
+import { getSupabasePublicKey, hasSupabasePublicEnv } from "@/lib/env";
 
 export async function updateSession(request: NextRequest) {
+  if (!hasSupabasePublicEnv()) {
+    return NextResponse.next({
+      request
+    });
+  }
+
   let response = NextResponse.next({
     request
   });

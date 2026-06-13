@@ -53,6 +53,7 @@ export function PendingLink({ children, className, pendingClassName, href, onCli
     <Link
       {...props}
       href={href}
+      prefetch={false}
       className={clsx(className, isPending && pendingClassName, isPending && "is-pending")}
       aria-busy={isPending || undefined}
       data-pending={isPending ? "true" : undefined}

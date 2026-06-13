@@ -2,7 +2,15 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { resolvePaymentStatus } from "@/lib/payment-status";
 import { createClient } from "@/lib/supabase/server";
 import { evaluateGroomingDraftAvailability, type GroomingOverlapRow } from "@/lib/grooming-draft";
-import type { BookingDetailViewModel, BookingPayment, BookingStatus, BookingType, DailyScheduleItem } from "@/types/database";
+import type {
+  BookingDetailViewModel,
+  BookingPayment,
+  BookingStatus,
+  BookingType,
+  DailyScheduleItem,
+  Pet,
+  ScheduleMonthSummaryItem
+} from "@/types/database";
 
 export type BookingItemInput = {
   serviceId: string;
@@ -34,6 +42,23 @@ export type AvailableRoomOption = {
   nightly_rate: number;
 };
 
+export type BookingRepeatDraft = {
+  bookingType: BookingType;
+  customer: {
+    id: string;
+    full_name: string;
+    phone: string;
+    facebook_name: string | null;
+    note: string | null;
+  };
+  petId: string;
+  secondaryPetId: string | null;
+  pets: Pet[];
+  serviceId: string;
+  totalAmount: number;
+  note: string;
+};
+
 
 const MAX_BOOKING_NO_ATTEMPTS = 5;
 const GROOMING_CAPACITY = 3;
@@ -50,7 +75,7 @@ function mapBookingToScheduleItem(booking: {
   start_at: string;
   end_at: string;
   total_amount: number | string;
-  customers?: { full_name?: string } | Array<{ full_name?: string }> | null;
+  customers?: { id?: string; full_name?: string; phone?: string | null } | Array<{ id?: string; full_name?: string; phone?: string | null }> | null;
   pets?: { name?: string } | Array<{ name?: string }> | null;
   secondary_pets?: { name?: string } | Array<{ name?: string }> | null;
   rooms?: { name?: string } | Array<{ name?: string }> | null;
@@ -83,7 +108,9 @@ function mapBookingToScheduleItem(booking: {
     payment_status: paymentStatus,
     start_at: booking.start_at,
     end_at: booking.end_at,
+    customer_id: customer?.id,
     customer_name: customer?.full_name ?? "-",
+    customer_phone: customer?.phone ?? null,
     pet_name: [pet?.name, secondaryPet?.name].filter((name): name is string => Boolean(name)).join(", ") || "-",
     room_name: room?.name ?? null,
     services_summary:
@@ -157,7 +184,7 @@ export async function getScheduleByStatus(status: BookingStatus): Promise<DailyS
         start_at,
         end_at,
         total_amount,
-        customers!inner(full_name),
+        customers!inner(id, full_name, phone),
         pets!bookings_pet_id_fkey!inner(name),
         secondary_pets:pets!bookings_secondary_pet_id_fkey(name),
         rooms(name),
@@ -195,7 +222,7 @@ export async function getScheduleInRange(startAt: string, endAtExclusive: string
         start_at,
         end_at,
         total_amount,
-        customers!inner(full_name),
+        customers!inner(id, full_name, phone),
         pets!bookings_pet_id_fkey!inner(name),
         secondary_pets:pets!bookings_secondary_pet_id_fkey(name),
         rooms(name),
@@ -220,6 +247,37 @@ export async function getScheduleInRange(startAt: string, endAtExclusive: string
   );
 }
 
+export async function getScheduleMonthSummaryInRange(startAt: string, endAtExclusive: string): Promise<ScheduleMonthSummaryItem[]> {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("bookings")
+    .select(
+      `
+        id,
+        booking_type,
+        status,
+        start_at,
+        end_at
+      `
+    )
+    .lt("start_at", endAtExclusive)
+    .gt("end_at", startAt)
+    .order("start_at", { ascending: true })
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return (data ?? []).map((booking) => ({
+    booking_id: booking.id,
+    booking_type: booking.booking_type as BookingType,
+    status: booking.status as BookingStatus,
+    start_at: booking.start_at,
+    end_at: booking.end_at
+  }));
+}
+
 export async function getBookingDetail(bookingId: string): Promise<BookingDetailViewModel> {
   const supabase = createAdminClient();
   const { data, error } = await supabase
@@ -234,7 +292,7 @@ export async function getBookingDetail(bookingId: string): Promise<BookingDetail
         end_at,
         total_amount,
         note,
-        customers!inner(full_name, phone),
+        customers!inner(id, full_name, phone),
         pets!bookings_pet_id_fkey!inner(name),
         secondary_pets:pets!bookings_secondary_pet_id_fkey(name),
         rooms(name),
@@ -268,6 +326,7 @@ export async function getBookingDetail(bookingId: string): Promise<BookingDetail
     payment_status: paymentStatus,
     start_at: data.start_at,
     end_at: data.end_at,
+    customer_id: customer?.id,
     customer_name: customer?.full_name ?? "-",
     customer_phone: customer?.phone ?? "-",
     pet_name: [primaryPet?.name, secondaryPet?.name].filter((name): name is string => Boolean(name)).join(", ") || "-",
@@ -281,6 +340,62 @@ export async function getBookingDetail(bookingId: string): Promise<BookingDetail
     total_amount: Number(data.total_amount),
     note: data.note ?? null,
     payment
+  };
+}
+
+export async function getBookingRepeatDraft(bookingId: string): Promise<BookingRepeatDraft | null> {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("bookings")
+    .select(
+      `
+        booking_type,
+        customer_id,
+        pet_id,
+        secondary_pet_id,
+        total_amount,
+        note,
+        customers!inner(id, full_name, phone, facebook_name, note),
+        pets!bookings_pet_id_fkey(id, customer_id, name, species, breed, weight_kg),
+        secondary_pets:pets!bookings_secondary_pet_id_fkey(id, customer_id, name, species, breed, weight_kg),
+        booking_items(service_id)
+      `
+    )
+    .eq("id", bookingId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  if (!data) {
+    return null;
+  }
+
+  const customer = toSingle(data.customers);
+  const primaryPet = toSingle(data.pets);
+  const secondaryPet = toSingle(data.secondary_pets);
+  const firstItem = data.booking_items?.[0];
+
+  if (!customer) {
+    return null;
+  }
+
+  return {
+    bookingType: data.booking_type as BookingType,
+    customer: {
+      id: customer.id,
+      full_name: customer.full_name,
+      phone: customer.phone,
+      facebook_name: customer.facebook_name,
+      note: customer.note
+    },
+    petId: data.pet_id,
+    secondaryPetId: data.secondary_pet_id,
+    pets: [primaryPet, secondaryPet].filter((pet): pet is Pet => Boolean(pet)),
+    serviceId: firstItem?.service_id ?? "",
+    totalAmount: Number(data.total_amount ?? 0),
+    note: data.note ?? ""
   };
 }
 

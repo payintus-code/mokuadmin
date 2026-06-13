@@ -58,11 +58,21 @@ export type DailyScheduleItem = {
   payment_status: PaymentStatus;
   start_at: string;
   end_at: string;
+  customer_id?: string;
   customer_name: string;
+  customer_phone?: string | null;
   pet_name: string;
   room_name: string | null;
   services_summary: string;
   total_amount: number;
+};
+
+export type ScheduleMonthSummaryItem = {
+  booking_id: string;
+  booking_type: BookingType;
+  status: BookingStatus;
+  start_at: string;
+  end_at: string;
 };
 
 export type ScheduleCalendarDay = {
@@ -78,6 +88,7 @@ export type BookingDetailViewModel = {
   payment_status: PaymentStatus;
   start_at: string;
   end_at: string;
+  customer_id?: string;
   customer_name: string;
   customer_phone: string;
   pet_name: string;

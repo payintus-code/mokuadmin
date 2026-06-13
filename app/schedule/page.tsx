@@ -21,11 +21,19 @@ import { PageHeader } from "@/components/ui/page-header";
 import { ScheduleCalendar, type ScheduleCalendarCell } from "@/components/ui/schedule-calendar";
 import { ScheduleListItem } from "@/components/ui/schedule-list-item";
 import { SetupNotice } from "@/components/ui/setup-notice";
+import { BookingQuickActions } from "@/components/ui/booking-quick-actions";
 import { requireAppUser } from "@/lib/auth";
 import { hasSupabaseEnv } from "@/lib/env";
-import { getScheduleInRange } from "@/lib/bookings";
+import { getDailySchedule, getScheduleMonthSummaryInRange } from "@/lib/bookings";
 import { formatDate } from "@/lib/format";
-import type { BookingType, DailyScheduleItem } from "@/types/database";
+import {
+  buildTodayWorkQueue,
+  buildWorkRiskAlerts,
+  filterScheduleWorkItems,
+  scheduleWorkFilterLabels,
+  type ScheduleWorkFilter
+} from "@/lib/frontdesk-work";
+import type { BookingType, ScheduleMonthSummaryItem } from "@/types/database";
 
 type ScheduleSearchParams = Promise<{
   month?: string;
@@ -33,6 +41,7 @@ type ScheduleSearchParams = Promise<{
   grooming?: string;
   hotel?: string;
   filters?: string;
+  work?: string;
 }>;
 
 const bookingTypeLabel = {
@@ -58,7 +67,7 @@ function parseDateParam(value: string | undefined, fallback: Date) {
   return Number.isNaN(parsed.getTime()) ? fallback : parsed;
 }
 
-function filterItems(items: DailyScheduleItem[], groomingEnabled: boolean, hotelEnabled: boolean) {
+function filterItems<T extends { booking_type: BookingType }>(items: T[], groomingEnabled: boolean, hotelEnabled: boolean) {
   return items.filter((item) => {
     if (item.booking_type === "grooming") {
       return groomingEnabled;
@@ -72,6 +81,11 @@ function filterItems(items: DailyScheduleItem[], groomingEnabled: boolean, hotel
   });
 }
 
+function parseWorkFilter(value: string | undefined): ScheduleWorkFilter {
+  const allowedFilters = Object.keys(scheduleWorkFilterLabels) as ScheduleWorkFilter[];
+  return allowedFilters.includes(value as ScheduleWorkFilter) ? (value as ScheduleWorkFilter) : "all";
+}
+
 function getUtcDateKey(value: string) {
   return new Date(value).toISOString().slice(0, 10);
 }
@@ -80,8 +94,8 @@ function addDaysToDateKey(value: string, days: number) {
   return format(addDays(parseISO(value), days), "yyyy-MM-dd");
 }
 
-function groupItemsByDate(items: DailyScheduleItem[], visibleStart: Date, visibleEnd: Date) {
-  const grouped = new Map<string, DailyScheduleItem[]>();
+function groupItemsByDate<T extends { start_at: string; end_at: string }>(items: T[], visibleStart: Date, visibleEnd: Date) {
+  const grouped = new Map<string, T[]>();
   const visibleStartKey = format(visibleStart, "yyyy-MM-dd");
   const visibleEndKey = format(visibleEnd, "yyyy-MM-dd");
 
@@ -115,6 +129,25 @@ function groupItemsByDate(items: DailyScheduleItem[], visibleStart: Date, visibl
   return grouped;
 }
 
+function buildCalendarSummary(items: ScheduleMonthSummaryItem[]) {
+  let groomingCount = 0;
+  let hotelCount = 0;
+
+  for (const item of items) {
+    if (item.booking_type === "grooming") {
+      groomingCount += 1;
+    } else if (item.booking_type === "hotel") {
+      hotelCount += 1;
+    }
+  }
+
+  return {
+    totalCount: items.length,
+    groomingCount,
+    hotelCount
+  };
+}
+
 export const dynamic = "force-dynamic";
 
 export default async function SchedulePage({ searchParams }: { searchParams?: ScheduleSearchParams }) {
@@ -137,6 +170,7 @@ export default async function SchedulePage({ searchParams }: { searchParams?: Sc
   const useCustomFilters = params.filters === "custom";
   const groomingEnabled = useCustomFilters ? params.grooming === "1" : true;
   const hotelEnabled = useCustomFilters ? params.hotel === "1" : true;
+  const workFilter = parseWorkFilter(params.work);
 
   const visibleStart = startOfWeek(selectedMonthDate, { weekStartsOn: 0 });
   const visibleEnd = endOfWeek(endOfMonth(selectedMonthDate), { weekStartsOn: 0 });
@@ -144,27 +178,38 @@ export default async function SchedulePage({ searchParams }: { searchParams?: Sc
 
   const rangeStartIso = `${format(visibleStart, "yyyy-MM-dd")}T00:00:00.000Z`;
   const rangeEndExclusiveIso = `${format(rangeEndExclusive, "yyyy-MM-dd")}T00:00:00.000Z`;
-  const rangeItems = await getScheduleInRange(rangeStartIso, rangeEndExclusiveIso);
-  const filteredItems = filterItems(rangeItems, groomingEnabled, hotelEnabled);
-  const groupedItems = groupItemsByDate(filteredItems, visibleStart, visibleEnd);
+  const selectedDateKey = format(selectedDate, "yyyy-MM-dd");
+  const [rangeSummaryItems, selectedDayItems] = await Promise.all([
+    getScheduleMonthSummaryInRange(rangeStartIso, rangeEndExclusiveIso),
+    getDailySchedule(selectedDateKey)
+  ]);
+  const filteredSummaryItems = filterItems(rangeSummaryItems, groomingEnabled, hotelEnabled);
+  const groupedSummaryItems = groupItemsByDate(filteredSummaryItems, visibleStart, visibleEnd);
+  const selectedItems = filterItems(selectedDayItems, groomingEnabled, hotelEnabled);
 
   const cells: ScheduleCalendarCell[] = [];
 
   for (let cursor = visibleStart; cursor <= visibleEnd; cursor = addDays(cursor, 1)) {
     const key = format(cursor, "yyyy-MM-dd");
+    const summary = buildCalendarSummary(groupedSummaryItems.get(key) ?? []);
+
     cells.push({
       date: key,
       inCurrentMonth: isSameMonth(cursor, selectedMonthDate),
       isSelected: isSameDay(cursor, selectedDate),
       isToday: isSameDay(cursor, today),
-      items: groupedItems.get(key) ?? []
+      ...summary
     });
   }
 
-  const selectedDateKey = format(selectedDate, "yyyy-MM-dd");
-  const selectedItems = groupedItems.get(selectedDateKey) ?? [];
+  const visibleSelectedItems = filterScheduleWorkItems(selectedItems, workFilter);
+  const workReferenceDate = isSameDay(selectedDate, today) ? new Date() : selectedDate;
+  const selectedWorkQueue = buildTodayWorkQueue(selectedItems, workReferenceDate);
+  const selectedRiskAlerts = buildWorkRiskAlerts(selectedItems, workReferenceDate);
   const prevMonth = format(addMonths(selectedMonthDate, -1), "yyyy-MM");
   const nextMonth = format(addMonths(selectedMonthDate, 1), "yyyy-MM");
+  const currentMonth = format(today, "yyyy-MM");
+  const currentDate = format(today, "yyyy-MM-dd");
   const monthTitle = format(selectedMonthDate, "MMMM yyyy", { locale: th });
   const activeTypes = (Object.keys(bookingTypeLabel) as BookingType[]).filter((type) =>
     type === "grooming" ? groomingEnabled : hotelEnabled
@@ -184,7 +229,8 @@ export default async function SchedulePage({ searchParams }: { searchParams?: Sc
                 month: prevMonth,
                 filters: useCustomFilters ? "custom" : undefined,
                 grooming: groomingEnabled ? "1" : undefined,
-                hotel: hotelEnabled ? "1" : undefined
+                hotel: hotelEnabled ? "1" : undefined,
+                work: workFilter !== "all" ? workFilter : undefined
               }
             }}
           >
@@ -199,7 +245,8 @@ export default async function SchedulePage({ searchParams }: { searchParams?: Sc
                 month: nextMonth,
                 filters: useCustomFilters ? "custom" : undefined,
                 grooming: groomingEnabled ? "1" : undefined,
-                hotel: hotelEnabled ? "1" : undefined
+                hotel: hotelEnabled ? "1" : undefined,
+                work: workFilter !== "all" ? workFilter : undefined
               }
             }}
           >
@@ -236,6 +283,25 @@ export default async function SchedulePage({ searchParams }: { searchParams?: Sc
         <div className="soft-note">
           กำลังแสดง: {activeTypes.length ? activeTypes.map((type) => bookingTypeLabel[type]).join(" / ") : "ไม่มีประเภทที่เลือก"}
         </div>
+
+        <div className="schedule-filter-actions">
+          <Link
+            className="btn btn-secondary"
+            href={{
+              pathname: "/schedule",
+              query: {
+                month: currentMonth,
+                date: currentDate,
+                filters: useCustomFilters ? "custom" : undefined,
+                grooming: groomingEnabled ? "1" : undefined,
+                hotel: hotelEnabled ? "1" : undefined,
+                work: workFilter !== "all" ? workFilter : undefined
+              }
+            }}
+          >
+            วันนี้
+          </Link>
+        </div>
       </section>
 
       <ScheduleCalendar
@@ -243,18 +309,129 @@ export default async function SchedulePage({ searchParams }: { searchParams?: Sc
         groomingEnabled={groomingEnabled}
         hotelEnabled={hotelEnabled}
         useCustomFilters={useCustomFilters}
+        workFilter={workFilter}
       />
+
+      <section className="panel stack">
+        <div className="frontdesk-section-heading">
+          <div>
+            <div className="section-kicker">Daily filters</div>
+            <h2 className="section-title">มุมมองงานของวันที่เลือก</h2>
+          </div>
+        </div>
+
+        <div className="work-filter-tabs">
+          {(Object.keys(scheduleWorkFilterLabels) as ScheduleWorkFilter[]).map((filter) => (
+            <Link
+              key={filter}
+              className={filter === workFilter ? "work-filter-tab work-filter-tab-active" : "work-filter-tab"}
+              href={{
+                pathname: "/schedule",
+                query: {
+                  month: format(selectedMonthDate, "yyyy-MM"),
+                  date: selectedDateKey,
+                  filters: useCustomFilters ? "custom" : undefined,
+                  grooming: groomingEnabled ? "1" : undefined,
+                  hotel: hotelEnabled ? "1" : undefined,
+                  work: filter === "all" ? undefined : filter
+                }
+              }}
+            >
+              {scheduleWorkFilterLabels[filter]}
+            </Link>
+          ))}
+        </div>
+      </section>
+
+      {selectedRiskAlerts.length ? (
+        <section className="panel stack">
+          <div>
+            <div className="section-kicker">Risk Alerts</div>
+            <h2 className="section-title">งานที่ควรเช็กในวันที่เลือก</h2>
+          </div>
+          <div className="work-alert-grid">
+            {selectedRiskAlerts.map((alert) => (
+              <article key={alert.key} className={`work-alert-card work-alert-card-${alert.tone}`}>
+                <div>
+                  <strong>{alert.title}</strong>
+                  <div className="muted">{alert.description}</div>
+                </div>
+                <Link className="tap-row-link" href={`/bookings/${alert.item.booking_id}`}>
+                  <span>เปิดคิว</span>
+                  <span aria-hidden="true">›</span>
+                </Link>
+              </article>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      <section className="panel stack">
+        <div>
+          <div className="section-kicker">Today Work Queue</div>
+          <h2 className="section-title">กลุ่มงานของวันที่เลือก</h2>
+        </div>
+        <div className="work-queue-grid">
+          {selectedWorkQueue.map((bucket) => (
+            <section key={bucket.key} className="work-queue-column">
+              <div className="work-queue-head">
+                <div>
+                  <strong>{bucket.title}</strong>
+                  <p>{bucket.description}</p>
+                </div>
+                <span>{bucket.items.length}</span>
+              </div>
+              {bucket.items.length ? (
+                <div className="stack">
+                  {bucket.items.slice(0, 3).map((item) => (
+                    <article key={`${bucket.key}-${item.booking_id}`} className="work-queue-item">
+                      <div className="work-queue-item-top">
+                        <div>
+                          <strong>{formatDate(item.start_at, "HH.mm")} {item.pet_name}</strong>
+                          <div className="muted">{item.customer_name}</div>
+                        </div>
+                      </div>
+                      <BookingQuickActions
+                        bookingId={item.booking_id}
+                        status={item.status}
+                        paymentStatus={item.payment_status}
+                        customerPhone={item.customer_phone}
+                        showReceipt={false}
+                        compact
+                      />
+                    </article>
+                  ))}
+                </div>
+              ) : (
+                <div className="soft-note">ไม่มีรายการ</div>
+              )}
+            </section>
+          ))}
+        </div>
+      </section>
 
       <section className="stack">
         <div className="panel">
           <strong>คิววันที่ {formatDate(selectedDate, "EEEE d MMM yyyy")}</strong>
           <p className="section-copy" style={{ margin: "8px 0 0" }}>
-            {selectedItems.length ? `มีทั้งหมด ${selectedItems.length} คิวในวันที่เลือก` : "ยังไม่มีคิวตามประเภทที่เลือกในวันนี้"}
+            {visibleSelectedItems.length ? `แสดง ${visibleSelectedItems.length} จากทั้งหมด ${selectedItems.length} คิว` : "ยังไม่มีคิวตามตัวกรองที่เลือกในวันนี้"}
           </p>
         </div>
 
-        {selectedItems.length ? (
-          selectedItems.map((item) => <ScheduleListItem key={`${selectedDateKey}-${item.booking_id}`} item={item} />)
+        {visibleSelectedItems.length ? (
+          visibleSelectedItems.map((item) => (
+            <div key={`${selectedDateKey}-${item.booking_id}`} className="schedule-work-item stack">
+              <ScheduleListItem item={item} />
+              <BookingQuickActions
+                bookingId={item.booking_id}
+                status={item.status}
+                paymentStatus={item.payment_status}
+                customerPhone={item.customer_phone}
+                showReceipt={false}
+                compact
+              />
+            </div>
+          ))
         ) : (
           <EmptyState
             icon={<CalendarDays size={24} strokeWidth={2.1} />}

@@ -18,7 +18,9 @@ export async function login(formData: FormData) {
   });
 
   if (error) {
-    redirect("/login?error=invalid_credentials");
+    const authError = encodeURIComponent(error.code ?? error.name ?? "auth_error");
+    const authMessage = encodeURIComponent(error.message ?? "Unable to sign in");
+    redirect(`/login?error=invalid_credentials&auth_code=${authError}&auth_message=${authMessage}`);
   }
 
   redirect("/");

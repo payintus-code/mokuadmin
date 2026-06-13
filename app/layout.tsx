@@ -4,6 +4,7 @@ import { getCurrentAppUser } from "@/lib/auth";
 import { BottomNav } from "@/components/ui/bottom-nav";
 import { FloatingBookingAction } from "@/components/ui/floating-booking-action";
 import { ToastProvider } from "@/components/ui/toast-provider";
+import { hasSupabaseEnv } from "@/lib/env";
 
 export const metadata: Metadata = {
   title: "Moku Pet Grooming",
@@ -18,7 +19,7 @@ export const viewport: Viewport = {
 };
 
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  const currentUser = await getCurrentAppUser();
+  const currentUser = hasSupabaseEnv() ? await getCurrentAppUser() : null;
 
   return (
     <html lang="th">

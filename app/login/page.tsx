@@ -10,7 +10,7 @@ const errorMessageMap: Record<string, string> = {
 export default async function LoginPage({
   searchParams
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; auth_code?: string; auth_message?: string }>;
 }) {
   const currentUser = await getCurrentAppUser();
 
@@ -20,6 +20,9 @@ export default async function LoginPage({
 
   const params = await searchParams;
   const errorMessage = params.error ? errorMessageMap[params.error] ?? "Unable to sign in." : null;
+  const authDetail = params.auth_code || params.auth_message
+    ? `${params.auth_code ? `[${params.auth_code}] ` : ""}${params.auth_message ?? ""}`
+    : null;
 
   return (
     <main className="stack">
@@ -43,7 +46,12 @@ export default async function LoginPage({
             <input className="input" id="password" name="password" type="password" autoComplete="current-password" required />
           </label>
 
-          {errorMessage ? <div className="soft-note">{errorMessage}</div> : null}
+          {errorMessage ? (
+            <div className="soft-note">
+              <div>{errorMessage}</div>
+              {authDetail ? <div style={{ marginTop: 6 }}>{authDetail}</div> : null}
+            </div>
+          ) : null}
 
           <button className="btn btn-primary" type="submit">
             Sign in

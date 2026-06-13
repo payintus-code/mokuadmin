@@ -19,7 +19,7 @@ create table if not exists public.shop_settings (
 );
 
 insert into public.shop_settings (id, shop_name, shop_address, shop_phone, promptpay_target, receipt_prefix)
-values (1, 'Moku Pet', 'กังสดาล ซอยวุาวาย', '0826922622', '0826922622', 'RC')
+values (1, 'Moku Pet', 'กังสดาล ซอยวุ่นวาย', '0826922622', '0826922622', 'RC')
 on conflict (id) do update
 set
   shop_name = excluded.shop_name,

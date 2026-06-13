@@ -62,10 +62,15 @@ export default async function CustomerDetailPage({
             </h2>
           </div>
           <div className="customer-profile-actions">
-            <div className="soft-note customer-contact-chip">
+            <a className="soft-note customer-contact-chip" href={`tel:${customer.phone.replace(/[^\d+]/g, "")}`}>
               <Phone size={16} strokeWidth={2.1} />
               <span>{customer.phone}</span>
-            </div>
+            </a>
+            {customer.facebook_name?.trim() ? (
+              <a className="btn btn-secondary" href={`https://www.facebook.com/search/top?q=${encodeURIComponent(customer.facebook_name)}`} target="_blank" rel="noreferrer">
+                เปิด Facebook
+              </a>
+            ) : null}
           </div>
         </div>
 
@@ -184,10 +189,16 @@ export default async function CustomerDetailPage({
                     <div className="muted">
                       {formatDateTime(item.start_at)} - {formatDateTime(item.end_at, "HH.mm")}
                     </div>
-                    <PendingLink className="tap-row-link customer-history-link" href={`/bookings/${item.booking_id}`}>
-                      <span>ดูรายละเอียดคิว</span>
-                      <span aria-hidden="true">›</span>
-                    </PendingLink>
+                    <div className="customer-history-actions">
+                      <PendingLink className="tap-row-link customer-history-link" href={`/bookings/${item.booking_id}`}>
+                        <span>ดูรายละเอียดคิว</span>
+                        <span aria-hidden="true">›</span>
+                      </PendingLink>
+                      <PendingLink className="tap-row-link customer-history-link" href={`/bookings/new?repeatBookingId=${item.booking_id}`}>
+                        <span>สร้างคิวซ้ำ</span>
+                        <span aria-hidden="true">›</span>
+                      </PendingLink>
+                    </div>
                   </div>
                 </article>
               );

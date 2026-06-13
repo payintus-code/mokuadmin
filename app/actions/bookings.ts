@@ -383,6 +383,20 @@ export async function quickUpdateBookingStatus(bookingId: string, status: Bookin
   revalidateBookingSurfaces(bookingId);
 }
 
+export async function quickUpdateBookingStatusFromForm(formData: FormData) {
+  await requireAppUser();
+
+  const bookingId = String(formData.get("bookingId") ?? "");
+  const status = String(formData.get("status") ?? "") as BookingStatus;
+
+  if (!bookingId || !status) {
+    throw new Error("Booking status data is incomplete");
+  }
+
+  await updateBookingStatus(bookingId, status);
+  revalidateBookingSurfaces(bookingId);
+}
+
 export async function completeBooking(formData: FormData) {
   await requireAppUser();
 

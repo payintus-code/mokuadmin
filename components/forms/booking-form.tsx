@@ -20,8 +20,19 @@ import type { Customer, PaymentCollectionType, PaymentMethod, Pet, Room, Service
 
 type BookingFormProps = {
   initialCustomers: Customer[];
+  initialPets?: Pet[];
   rooms: Room[];
   services: Service[];
+  repeatDraft?: {
+    bookingType: "grooming" | "hotel";
+    customerId: string;
+    customerName: string;
+    petId: string;
+    secondaryPetId: string | null;
+    serviceId: string;
+    totalAmount: number;
+    note: string;
+  } | null;
 };
 
 type ImportPreviewState = {
@@ -290,32 +301,32 @@ function ReviewButton({
   );
 }
 
-export function BookingForm({ initialCustomers, rooms, services }: BookingFormProps) {
+export function BookingForm({ initialCustomers, initialPets = [], rooms, services, repeatDraft = null }: BookingFormProps) {
   const router = useRouter();
   const { showToast } = useToast();
   const defaults = useMemo(() => buildDefaultDateRange(), []);
   const [customers, setCustomers] = useState<Customer[]>(initialCustomers);
-  const [pets, setPets] = useState<Pet[]>([]);
+  const [pets, setPets] = useState<Pet[]>(initialPets);
   const hasExistingCustomers = customers.length > 0;
 
   const groomingServices = useMemo(() => services.filter((service) => service.category !== "hotel"), [services]);
   const hotelServices = useMemo(() => services.filter((service) => service.category === "hotel"), [services]);
   const roomById = useMemo(() => new Map(rooms.map((room) => [room.id, room])), [rooms]);
 
-  const [bookingType, setBookingType] = useState<"grooming" | "hotel">("grooming");
-  const [customerMode, setCustomerMode] = useState<"existing" | "new">(hasExistingCustomers ? "existing" : "new");
-  const [customerSearch, setCustomerSearch] = useState("");
+  const [bookingType, setBookingType] = useState<"grooming" | "hotel">(repeatDraft?.bookingType ?? "grooming");
+  const [customerMode, setCustomerMode] = useState<"existing" | "new">(repeatDraft || hasExistingCustomers ? "existing" : "new");
+  const [customerSearch, setCustomerSearch] = useState(repeatDraft?.customerName ?? "");
   const [customerLookupStatus, setCustomerLookupStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [petLookupStatus, setPetLookupStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
-  const [customerId, setCustomerId] = useState("");
-  const [primaryPetId, setPrimaryPetId] = useState("");
-  const [secondaryPetId, setSecondaryPetId] = useState("");
+  const [customerId, setCustomerId] = useState(repeatDraft?.customerId ?? "");
+  const [primaryPetId, setPrimaryPetId] = useState(repeatDraft?.petId ?? "");
+  const [secondaryPetId, setSecondaryPetId] = useState(repeatDraft?.secondaryPetId ?? "");
   const [roomId, setRoomId] = useState("");
-  const [serviceId, setServiceId] = useState("");
+  const [serviceId, setServiceId] = useState(repeatDraft?.serviceId ?? "");
   const [startAt, setStartAt] = useState(defaults.startAt);
   const [endAt, setEndAt] = useState(defaults.endAt);
-  const [manualTotalAmount, setManualTotalAmount] = useState("");
-  const [note, setNote] = useState("");
+  const [manualTotalAmount, setManualTotalAmount] = useState(repeatDraft?.totalAmount ? String(repeatDraft.totalAmount) : "");
+  const [note, setNote] = useState(repeatDraft?.note ?? "");
   const [importedContextNote, setImportedContextNote] = useState("");
   const [paymentCollectionType, setPaymentCollectionType] = useState<PaymentCollectionType>("none");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("transfer");
@@ -337,10 +348,10 @@ export function BookingForm({ initialCustomers, rooms, services }: BookingFormPr
   const [formError, setFormError] = useState("");
   const [formSuccess, setFormSuccess] = useState("");
   const [isImportOpen, setIsImportOpen] = useState(false);
-  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+  const [isDetailsOpen, setIsDetailsOpen] = useState(Boolean(repeatDraft?.note || repeatDraft?.totalAmount));
   const [isReviewOpen, setIsReviewOpen] = useState(false);
   const [showPaymentNow, setShowPaymentNow] = useState(false);
-  const [showSecondaryPet, setShowSecondaryPet] = useState(false);
+  const [showSecondaryPet, setShowSecondaryPet] = useState(Boolean(repeatDraft?.secondaryPetId));
   const [hotelRoomState, setHotelRoomState] = useState<GuardState<AvailableRoomOption[]>>({
     status: "idle",
     message: "",
@@ -700,7 +711,7 @@ export function BookingForm({ initialCustomers, rooms, services }: BookingFormPr
   function resetFormState() {
     const nextDefaults = buildDefaultDateRange();
     setCustomers(initialCustomers);
-    setPets([]);
+    setPets(initialPets);
     setBookingType("grooming");
     setCustomerMode(initialCustomers.length ? "existing" : "new");
     setCustomerSearch("");
@@ -1052,6 +1063,13 @@ export function BookingForm({ initialCustomers, rooms, services }: BookingFormPr
 
   return (
     <form action={handleSubmit} className="stack booking-form-shell">
+      {repeatDraft ? (
+        <div className="state-note state-note-success">
+          <strong>กำลังสร้างคิวซ้ำจากลูกค้าเดิม</strong>
+          <div className="label-hint">ระบบเติมลูกค้า สัตว์เลี้ยง บริการ ยอด และหมายเหตุจากคิวเดิมให้แล้ว กรุณาเลือกวันเวลาใหม่ก่อนบันทึก</div>
+        </div>
+      ) : null}
+
       <section className="form-section booking-toolbar">
         <div>
           <p className="section-kicker">Front Desk Flow</p>

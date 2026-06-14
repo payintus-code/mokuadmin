@@ -5,16 +5,18 @@ export function MetricCard({
   value,
   tone = "default",
   detail,
-  icon
+  icon,
+  className = ""
 }: {
   label: string;
   value: string;
   tone?: "default" | "success" | "warning" | "danger";
   detail?: string;
   icon?: ReactNode;
+  className?: string;
 }) {
   return (
-    <article className={`metric-card metric-card-${tone}`}>
+    <article className={`metric-card metric-card-${tone}${className ? ` ${className}` : ""}`}>
       <div className="metric-card-top">
         <span className="metric-card-label">{label}</span>
         {icon ? <span className="metric-card-icon">{icon}</span> : null}

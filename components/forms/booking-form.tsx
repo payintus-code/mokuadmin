@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
@@ -864,10 +863,12 @@ export function BookingForm({ initialCustomers, initialPets = [], rooms, service
 
     try {
       await createBooking(formData);
-      resetFormState();
-      setFormSuccess("บันทึกการจองเรียบร้อยแล้ว");
       showToast();
+      resetFormState();
       router.refresh();
+      window.requestAnimationFrame(() => {
+        window.scrollTo({ top: 0, left: 0, behavior: "smooth" });
+      });
     } catch (error) {
       setFormError(error instanceof Error ? error.message : "ไม่สามารถบันทึกการจองได้");
     }
@@ -1084,9 +1085,6 @@ export function BookingForm({ initialCustomers, initialPets = [], rooms, service
           >
             วางข้อความยืนยันการจอง
           </button>
-          <Link className="btn btn-ghost" href="/schedule">
-            ดูตารางคิว
-          </Link>
         </div>
 
         {isImportOpen ? (

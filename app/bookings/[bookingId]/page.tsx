@@ -1,11 +1,9 @@
 import Link from "next/link";
 import { deleteBooking } from "@/app/actions/bookings";
 import { DeleteButton } from "@/components/forms/delete-button";
-import { BookingQuickActions } from "@/components/ui/booking-quick-actions";
 import { PageHeader } from "@/components/ui/page-header";
 import { PaymentStatusBadge } from "@/components/ui/payment-status-badge";
 import { SetupNotice } from "@/components/ui/setup-notice";
-import { StatusBadge } from "@/components/ui/status-badge";
 import { requireAppUser } from "@/lib/auth";
 import { hasSupabaseEnv } from "@/lib/env";
 import { getBookingDetail } from "@/lib/bookings";
@@ -52,7 +50,6 @@ export default async function BookingDetailPage({
             </div>
           </div>
           <div className="schedule-badge-stack">
-            <StatusBadge status={booking.status} />
             <PaymentStatusBadge status={booking.payment_status} />
           </div>
         </div>
@@ -113,20 +110,6 @@ export default async function BookingDetailPage({
           <div className="muted">หมายเหตุ</div>
           <div>{booking.note?.trim() ? booking.note : "-"}</div>
         </div>
-
-        <section className="panel-muted card stack">
-          <div>
-            <div className="section-kicker">Clear Work</div>
-            <h2 className="form-section-title">เคลียร์งานคิวนี้</h2>
-          </div>
-          <BookingQuickActions
-            bookingId={booking.booking_id}
-            status={booking.status}
-            paymentStatus={booking.payment_status}
-            customerPhone={booking.customer_phone}
-            showDetail={false}
-          />
-        </section>
 
         <div className={currentUser.role === "admin" ? "grid-2" : undefined}>
           <Link className="btn btn-secondary" href={`/payments/${booking.booking_id}`}>

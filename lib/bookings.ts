@@ -160,14 +160,10 @@ function buildFallbackBookingNo(date = new Date()) {
 }
 
 export async function getDailySchedule(day: string): Promise<DailyScheduleItem[]> {
-  const supabase = createAdminClient();
-  const { data, error } = await supabase.rpc("get_daily_schedule", { p_day: day });
+  const startAt = `${day}T00:00:00.000Z`;
+  const endAtExclusive = new Date(new Date(startAt).getTime() + 24 * 60 * 60 * 1000).toISOString();
 
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  return (data ?? []) as DailyScheduleItem[];
+  return getScheduleInRange(startAt, endAtExclusive);
 }
 
 export async function getScheduleByStatus(status: BookingStatus): Promise<DailyScheduleItem[]> {

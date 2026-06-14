@@ -1,7 +1,6 @@
 import { completeBooking, deleteBooking } from "@/app/actions/bookings";
 import { DeleteButton } from "@/components/forms/delete-button";
 import { PaymentStatusBadge } from "@/components/ui/payment-status-badge";
-import { StatusBadge } from "@/components/ui/status-badge";
 import { ToastActionForm } from "@/components/ui/toast-action-form";
 import { formatBaht, formatTime } from "@/lib/format";
 import Link from "next/link";
@@ -23,7 +22,6 @@ export function ScheduleCard({ item }: { item: DailyScheduleItem }) {
             </div>
           </div>
           <div className="stack" style={{ justifyItems: "end", gap: 6 }}>
-            <StatusBadge status={item.status} />
             <PaymentStatusBadge status={item.payment_status} />
           </div>
         </div>

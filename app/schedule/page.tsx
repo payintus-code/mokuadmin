@@ -203,6 +203,13 @@ export default async function SchedulePage({ searchParams }: { searchParams?: Sc
   }
 
   const visibleSelectedItems = filterScheduleWorkItems(selectedItems, workFilter);
+  const selectedTypeSummary = selectedItems.reduce(
+    (summary, item) => ({
+      grooming: summary.grooming + (item.booking_type === "grooming" ? 1 : 0),
+      hotel: summary.hotel + (item.booking_type === "hotel" ? 1 : 0)
+    }),
+    { grooming: 0, hotel: 0 }
+  );
   const workReferenceDate = isSameDay(selectedDate, today) ? new Date() : selectedDate;
   const selectedWorkQueue = buildTodayWorkQueue(selectedItems, workReferenceDate);
   const selectedRiskAlerts = buildWorkRiskAlerts(selectedItems, workReferenceDate);
@@ -216,10 +223,12 @@ export default async function SchedulePage({ searchParams }: { searchParams?: Sc
   );
 
   return (
-    <main className="stack">
-      <PageHeader title="ตารางคิว" subtitle="มุมมองรายเดือนสำหรับกดดูคิวแต่ละวันได้ง่ายทั้งบนคอมและมือถือ" actionLabel="สร้างคิวใหม่" actionHref="/bookings/new" />
+    <main className="stack schedule-page">
+      <div className="schedule-mobile-hidden">
+        <PageHeader title="ตารางคิว" subtitle="มุมมองรายเดือนสำหรับกดดูคิวแต่ละวันได้ง่ายทั้งบนคอมและมือถือ" actionLabel="สร้างคิวใหม่" actionHref="/bookings/new" />
+      </div>
 
-      <section className="panel stack">
+      <section className="panel stack schedule-month-overview-panel">
         <div className="schedule-month-nav">
           <Link
             className="btn btn-secondary"
@@ -254,7 +263,7 @@ export default async function SchedulePage({ searchParams }: { searchParams?: Sc
           </Link>
         </div>
 
-        <form className="stack" method="get">
+        <form className="stack schedule-mobile-hidden" method="get">
           <input type="hidden" name="month" value={format(selectedMonthDate, "yyyy-MM")} />
           <input type="hidden" name="date" value={selectedDateKey} />
           <input type="hidden" name="filters" value="custom" />
@@ -280,11 +289,11 @@ export default async function SchedulePage({ searchParams }: { searchParams?: Sc
           </div>
         </form>
 
-        <div className="soft-note">
+        <div className="soft-note schedule-mobile-hidden">
           กำลังแสดง: {activeTypes.length ? activeTypes.map((type) => bookingTypeLabel[type]).join(" / ") : "ไม่มีประเภทที่เลือก"}
         </div>
 
-        <div className="schedule-filter-actions">
+        <div className="schedule-filter-actions schedule-mobile-hidden">
           <Link
             className="btn btn-secondary"
             href={{
@@ -312,7 +321,7 @@ export default async function SchedulePage({ searchParams }: { searchParams?: Sc
         workFilter={workFilter}
       />
 
-      <section className="panel stack">
+      <section className="panel stack schedule-mobile-hidden">
         <div className="frontdesk-section-heading">
           <div>
             <div className="section-kicker">Daily filters</div>
@@ -344,7 +353,7 @@ export default async function SchedulePage({ searchParams }: { searchParams?: Sc
       </section>
 
       {selectedRiskAlerts.length ? (
-        <section className="panel stack">
+        <section className="panel stack schedule-mobile-hidden">
           <div>
             <div className="section-kicker">Risk Alerts</div>
             <h2 className="section-title">งานที่ควรเช็กในวันที่เลือก</h2>
@@ -366,7 +375,7 @@ export default async function SchedulePage({ searchParams }: { searchParams?: Sc
         </section>
       ) : null}
 
-      <section className="panel stack">
+      <section className="panel stack schedule-mobile-hidden">
         <div>
           <div className="section-kicker">Today Work Queue</div>
           <h2 className="section-title">กลุ่มงานของวันที่เลือก</h2>
@@ -396,6 +405,10 @@ export default async function SchedulePage({ searchParams }: { searchParams?: Sc
                         status={item.status}
                         paymentStatus={item.payment_status}
                         customerPhone={item.customer_phone}
+                        showStatusAction={false}
+                        showCall={false}
+                        showDetail={false}
+                        showRepeat={false}
                         showReceipt={false}
                         compact
                       />
@@ -410,14 +423,24 @@ export default async function SchedulePage({ searchParams }: { searchParams?: Sc
         </div>
       </section>
 
-      <section className="stack">
-        <div className="panel">
-          <strong>คิววันที่ {formatDate(selectedDate, "EEEE d MMM yyyy")}</strong>
-          <p className="section-copy" style={{ margin: "8px 0 0" }}>
-            {visibleSelectedItems.length ? `แสดง ${visibleSelectedItems.length} จากทั้งหมด ${selectedItems.length} คิว` : "ยังไม่มีคิวตามตัวกรองที่เลือกในวันนี้"}
-          </p>
+      <section className="panel stack schedule-mobile-day-summary">
+        <div>
+          <div className="section-kicker">Daily Summary</div>
+          <h2 className="section-title">สรุปรายการวันที่เลือก</h2>
         </div>
+        <div className="schedule-day-summary-grid">
+          <div className="meta-block">
+            <div className="meta-label">โรงแรม</div>
+            <div className="meta-value">{selectedTypeSummary.hotel} คิว</div>
+          </div>
+          <div className="meta-block">
+            <div className="meta-label">อาบน้ำ</div>
+            <div className="meta-value">{selectedTypeSummary.grooming} คิว</div>
+          </div>
+        </div>
+      </section>
 
+      <section className="stack schedule-selected-day-list">
         {visibleSelectedItems.length ? (
           visibleSelectedItems.map((item) => (
             <div key={`${selectedDateKey}-${item.booking_id}`} className="schedule-work-item stack">
@@ -427,6 +450,10 @@ export default async function SchedulePage({ searchParams }: { searchParams?: Sc
                 status={item.status}
                 paymentStatus={item.payment_status}
                 customerPhone={item.customer_phone}
+                showStatusAction={false}
+                showCall={false}
+                showDetail={false}
+                showRepeat={false}
                 showReceipt={false}
                 compact
               />

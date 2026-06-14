@@ -6,7 +6,6 @@ import { PageHeader } from "@/components/ui/page-header";
 import { PaymentStatusBadge } from "@/components/ui/payment-status-badge";
 import { PendingLink } from "@/components/ui/pending-link";
 import { SetupNotice } from "@/components/ui/setup-notice";
-import { StatusBadge } from "@/components/ui/status-badge";
 import { requireAppUser } from "@/lib/auth";
 import { getCustomerHistory } from "@/lib/customer-history";
 import { hasSupabaseEnv } from "@/lib/env";
@@ -158,7 +157,6 @@ export default async function CustomerDetailPage({
                       </div>
                     </div>
                     <div className="schedule-badge-stack">
-                      <StatusBadge status={item.status} />
                       <PaymentStatusBadge status={item.payment_status} />
                     </div>
                   </div>

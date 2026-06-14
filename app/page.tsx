@@ -6,7 +6,6 @@ import { PaymentStatusBadge } from "@/components/ui/payment-status-badge";
 import { PendingLink } from "@/components/ui/pending-link";
 import { SetupNotice } from "@/components/ui/setup-notice";
 import { requireAppUser } from "@/lib/auth";
-import { StatusBadge } from "@/components/ui/status-badge";
 import { BookingQuickActions } from "@/components/ui/booking-quick-actions";
 import { hasSupabaseEnv } from "@/lib/env";
 import { getDailySchedule } from "@/lib/bookings";
@@ -161,14 +160,17 @@ export default async function DashboardPage() {
   const urgentItems = getUrgentWorkItems(schedule);
   const workQueue = buildTodayWorkQueue(schedule);
   const riskAlerts = buildWorkRiskAlerts(schedule);
+  const pendingMobileItems = schedule
+    .filter((item) => isOperationalBooking(item))
+    .sort((left, right) => new Date(left.start_at).getTime() - new Date(right.start_at).getTime());
 
   const totalRooms = roomsResult.count ?? 0;
   const availableRoomCount = Math.max(totalRooms - occupiedRoomCount, 0);
   const visibleQuickLinks = currentUser.role === "admin" ? quickLinks : quickLinks.filter((item) => item.href !== "/finance");
 
   return (
-    <main className="stack">
-      <section className="card frontdesk-hero">
+    <main className="stack dashboard-page">
+      <section className="card frontdesk-hero dashboard-desktop-section">
         <div className="frontdesk-hero-copy">
           <div className="section-kicker">Front Desk</div>
           <h1 className="frontdesk-hero-title">งานหน้าร้านวันนี้</h1>
@@ -189,7 +191,7 @@ export default async function DashboardPage() {
 
       <section className={unpaidCount > 0 ? "grid-2 frontdesk-metrics frontdesk-metrics-with-alert" : "grid-3 frontdesk-metrics"}>
         <MetricCard
-          label="คิวทั้งหมดวันนี้"
+          label="คิวทั้งหมดของวันนี้"
           value={`${totalCount} รายการ`}
           detail="คิวทั้งหมดที่อยู่ในภาพรวมของวันนี้"
           icon={<Home size={18} strokeWidth={2.1} />}
@@ -210,6 +212,7 @@ export default async function DashboardPage() {
         />
         {unpaidCount > 0 ? (
           <MetricCard
+            className="dashboard-mobile-hidden"
             label="ค้างชำระ"
             value={`${unpaidCount} รายการ`}
             detail="ควรรีบเช็กการรับชำระก่อนจบวัน"
@@ -219,8 +222,50 @@ export default async function DashboardPage() {
         ) : null}
       </section>
 
+      <section className="panel stack dashboard-mobile-pending-section">
+        <div className="frontdesk-section-heading">
+          <div>
+            <div className="section-kicker">Pending Queue</div>
+            <h2 className="section-title">รายการที่รอดำเนินการ</h2>
+          </div>
+          <Link className="tap-row-link" href="/schedule">
+            <span>ไปตารางวันนี้</span>
+            <span aria-hidden="true">›</span>
+          </Link>
+        </div>
+
+        {pendingMobileItems.length ? (
+          <div className="dashboard-mobile-pending-list">
+            {pendingMobileItems.map((item) => (
+              <article key={`mobile-pending-${item.booking_id}`} className="work-queue-item dashboard-mobile-pending-item">
+                <div className="work-queue-item-top">
+                  <div>
+                    <strong>
+                      {formatTime(item.start_at)} {item.pet_name}
+                    </strong>
+                    <div className="muted">{item.customer_name}</div>
+                  </div>
+                  <PaymentStatusBadge status={item.payment_status} />
+                </div>
+                <div className="muted">{item.room_name || item.services_summary || item.booking_no}</div>
+                <BookingQuickActions
+                  bookingId={item.booking_id}
+                  status={item.status}
+                  paymentStatus={item.payment_status}
+                  customerPhone={item.customer_phone}
+                  showReceipt={false}
+                  compact
+                />
+              </article>
+            ))}
+          </div>
+        ) : (
+          <div className="soft-note">วันนี้ไม่มีคิวที่รอดำเนินการ</div>
+        )}
+      </section>
+
       {riskAlerts.length ? (
-        <section className="panel stack">
+        <section className="panel stack dashboard-desktop-section">
           <div className="frontdesk-section-heading">
             <div>
               <div className="section-kicker">Risk Alerts</div>
@@ -245,7 +290,7 @@ export default async function DashboardPage() {
         </section>
       ) : null}
 
-      <section className="panel stack">
+      <section className="panel stack dashboard-desktop-section">
         <div className="frontdesk-section-heading">
           <div>
             <div className="section-kicker">Today Work Queue</div>
@@ -277,7 +322,7 @@ export default async function DashboardPage() {
                           <strong>{formatTime(item.start_at)} {item.pet_name}</strong>
                           <div className="muted">{item.customer_name}</div>
                         </div>
-                        <StatusBadge status={item.status} />
+                        <PaymentStatusBadge status={item.payment_status} />
                       </div>
                       <div className="muted">{item.room_name || item.services_summary || item.booking_no}</div>
                       <BookingQuickActions
@@ -299,7 +344,7 @@ export default async function DashboardPage() {
         </div>
       </section>
 
-      <section className="frontdesk-main-grid">
+      <section className="frontdesk-main-grid dashboard-desktop-section">
         <section className="panel stack frontdesk-primary-panel">
           <div className="frontdesk-section-heading">
             <div>
@@ -328,7 +373,6 @@ export default async function DashboardPage() {
                       </div>
 
                       <div className="schedule-badge-stack">
-                        <StatusBadge status={item.status} />
                         <PaymentStatusBadge status={item.payment_status} />
                       </div>
                     </div>
@@ -454,7 +498,7 @@ export default async function DashboardPage() {
         </section>
       </section>
 
-      <section className="grid-2">
+      <section className="grid-2 dashboard-desktop-section">
         <article className="panel stack">
           <div className="frontdesk-section-heading">
             <div>

@@ -10,6 +10,8 @@ type BookingQuickActionsProps = {
   status: BookingStatus;
   paymentStatus?: "pending" | "paid" | "cancelled";
   customerPhone?: string | null;
+  showStatusAction?: boolean;
+  showCall?: boolean;
   showDetail?: boolean;
   showRepeat?: boolean;
   showReceipt?: boolean;
@@ -26,6 +28,8 @@ export function BookingQuickActions({
   status,
   paymentStatus,
   customerPhone,
+  showStatusAction = true,
+  showCall = true,
   showDetail = true,
   showRepeat = true,
   showReceipt = true,
@@ -36,7 +40,7 @@ export function BookingQuickActions({
 
   return (
     <div className={compact ? "booking-quick-actions booking-quick-actions-compact" : "booking-quick-actions"}>
-      {nextStatus ? (
+      {showStatusAction && nextStatus ? (
         <ToastActionForm
           action={quickUpdateBookingStatusFromForm}
           className="booking-quick-action-form"
@@ -57,7 +61,7 @@ export function BookingQuickActions({
         </Link>
       ) : null}
 
-      {phoneHref ? (
+      {showCall && phoneHref ? (
         <a className="btn btn-secondary" href={phoneHref}>
           <Phone size={18} strokeWidth={2.2} />
           <span>โทร</span>

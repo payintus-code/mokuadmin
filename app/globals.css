@@ -703,6 +703,15 @@ textarea:focus-visible {
   align-items: stretch;
 }
 
+.dashboard-mobile-pending-section {
+  display: none;
+}
+
+.dashboard-mobile-pending-list {
+  display: grid;
+  gap: 10px;
+}
+
 .frontdesk-main-grid {
   display: grid;
   gap: 18px;
@@ -1580,6 +1589,16 @@ textarea:focus-visible {
   display: none;
 }
 
+.schedule-mobile-day-summary {
+  display: none;
+}
+
+.schedule-day-summary-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .schedule-calendar-wrap {
   overflow-x: auto;
   padding-bottom: 4px;
@@ -1697,6 +1716,10 @@ textarea:focus-visible {
 
 .schedule-list-card-compact {
   gap: 14px;
+}
+
+.schedule-mobile-row {
+  display: none;
 }
 
 .schedule-list-compact-top {
@@ -2456,6 +2479,20 @@ textarea:focus-visible {
     gap: 10px;
   }
 
+  .dashboard-page .dashboard-desktop-section,
+  .dashboard-page .dashboard-mobile-hidden {
+    display: none;
+  }
+
+  .dashboard-mobile-pending-section {
+    display: grid;
+  }
+
+  .dashboard-mobile-pending-item {
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.9);
+  }
+
   .metric-card {
     min-height: 118px;
     padding: 14px;
@@ -2521,6 +2558,137 @@ textarea:focus-visible {
 
   .schedule-status-block {
     justify-items: start;
+  }
+
+  .schedule-page .schedule-selected-day-list {
+    gap: 10px;
+  }
+
+  .schedule-page .schedule-selected-day-list > .panel {
+    padding: 14px;
+  }
+
+  .schedule-page .schedule-selected-day-list .schedule-work-item {
+    gap: 8px;
+    padding: 10px;
+    border-radius: 16px;
+  }
+
+  .schedule-page .schedule-selected-day-list .schedule-list-card {
+    padding: 12px;
+    border-radius: 14px;
+  }
+
+  .schedule-page .schedule-selected-day-list .schedule-list-card-compact {
+    gap: 8px;
+  }
+
+  .schedule-page .schedule-selected-day-list .schedule-mobile-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 6px 8px;
+    align-items: center;
+    min-width: 0;
+  }
+
+  .schedule-page .schedule-selected-day-list .schedule-list-compact-top,
+  .schedule-page .schedule-selected-day-list .schedule-summary-grid,
+  .schedule-page .schedule-selected-day-list .schedule-list-footer {
+    display: none;
+  }
+
+  .schedule-page .schedule-selected-day-list .schedule-mobile-row-time,
+  .schedule-page .schedule-selected-day-list .schedule-mobile-row-type {
+    color: var(--text-soft);
+    font-size: 0.78rem;
+    font-weight: 800;
+    white-space: nowrap;
+  }
+
+  .schedule-page .schedule-selected-day-list .schedule-mobile-row-time {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .schedule-page .schedule-selected-day-list .schedule-mobile-row-pet {
+    grid-column: 1;
+    grid-row: 2;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--text);
+    font-size: 0.94rem;
+    font-weight: 850;
+  }
+
+  .schedule-page .schedule-selected-day-list .schedule-mobile-row-type {
+    grid-column: 2;
+    grid-row: 2;
+    justify-self: end;
+  }
+
+  .schedule-page .schedule-selected-day-list .schedule-mobile-row .status-badge {
+    grid-column: 2;
+    grid-row: 1;
+    justify-self: end;
+  }
+
+  .schedule-page .schedule-selected-day-list .schedule-mobile-row .status-badge {
+    min-height: 24px;
+    padding: 4px 8px;
+    font-size: 0.72rem;
+  }
+
+  .schedule-page .schedule-selected-day-list .schedule-list-compact-top {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .schedule-page .schedule-selected-day-list .schedule-list-time {
+    margin-top: 2px;
+    font-size: 0.98rem;
+    line-height: 1.24;
+  }
+
+  .schedule-page .schedule-selected-day-list .schedule-status-block {
+    justify-items: end;
+    gap: 4px;
+  }
+
+  .schedule-page .schedule-selected-day-list .schedule-summary-grid {
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+    gap: 8px;
+  }
+
+  .schedule-page .schedule-selected-day-list .schedule-summary-block {
+    gap: 2px;
+  }
+
+  .schedule-page .schedule-selected-day-list .schedule-list-footer {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: -2px;
+  }
+
+  .schedule-page .schedule-selected-day-list .schedule-list-view {
+    font-size: 0.88rem;
+  }
+
+  .schedule-page .schedule-selected-day-list .schedule-list-footer {
+    display: none;
+  }
+
+  .schedule-page .schedule-selected-day-list .booking-quick-actions-compact {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .schedule-page .schedule-selected-day-list .booking-quick-actions .btn {
+    min-height: 38px;
+    padding: 8px 10px;
+    font-size: 0.82rem;
   }
 
   .status-badge {
@@ -2680,6 +2848,18 @@ textarea:focus-visible {
     gap: 10px;
     position: relative;
     z-index: 1;
+  }
+
+  .schedule-page .schedule-mobile-hidden {
+    display: none;
+  }
+
+  .schedule-page .schedule-mobile-strip > .section-copy {
+    display: none;
+  }
+
+  .schedule-mobile-day-summary {
+    display: grid;
   }
 
   .schedule-mobile-days {
@@ -2891,6 +3071,10 @@ textarea:focus-visible {
   .booking-quick-actions,
   .booking-quick-actions-compact {
     grid-template-columns: 1fr;
+  }
+
+  .schedule-page .schedule-selected-day-list .booking-quick-actions-compact {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 

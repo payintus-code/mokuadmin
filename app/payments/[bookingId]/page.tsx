@@ -2,11 +2,9 @@ import { BookingPaymentForm } from "@/components/forms/booking-payment-form";
 import { PageHeader } from "@/components/ui/page-header";
 import { PaymentStatusBadge } from "@/components/ui/payment-status-badge";
 import { SetupNotice } from "@/components/ui/setup-notice";
-import { StatusBadge } from "@/components/ui/status-badge";
 import { requireAppUser } from "@/lib/auth";
 import { hasSupabaseEnv } from "@/lib/env";
 import { prepareBookingPayment } from "@/lib/payments";
-import type { BookingStatus } from "@/types/database";
 
 export const dynamic = "force-dynamic";
 
@@ -40,7 +38,6 @@ export default async function PaymentPage({
             <div className="muted">{paymentInfo.bookingType === "hotel" ? "โรงแรม" : "อาบน้ำ / ตัดขน"}</div>
           </div>
           <div className="schedule-badge-stack">
-            <StatusBadge status={paymentInfo.bookingStatus as BookingStatus} />
             <PaymentStatusBadge status={paymentInfo.paymentStatus} />
           </div>
         </div>

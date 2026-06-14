@@ -339,6 +339,7 @@ returns table (
   start_at timestamptz,
   end_at timestamptz,
   customer_name text,
+  customer_phone text,
   pet_name text,
   room_name text,
   services_summary text,
@@ -359,6 +360,7 @@ as $$
     b.start_at,
     b.end_at,
     c.full_name as customer_name,
+    c.phone as customer_phone,
     concat_ws(', ', p1.name, p2.name) as pet_name,
     r.name as room_name,
     coalesce(string_agg(s.name, ', ' order by s.name) filter (where s.name is not null), '') as services_summary,
@@ -372,7 +374,7 @@ as $$
   left join public.booking_items bi on bi.booking_id = b.id
   left join public.services s on s.id = bi.service_id
   where tstzrange(b.start_at, b.end_at, '[)') && tstzrange(p_day::timestamptz, (p_day + 1)::timestamptz, '[)')
-  group by b.id, c.full_name, p1.name, p2.name, r.name, bp.status, bp.amount
+  group by b.id, c.full_name, c.phone, p1.name, p2.name, r.name, bp.status, bp.amount
   order by b.start_at, b.created_at;
 $$;
 

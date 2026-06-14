@@ -63,6 +63,22 @@ export type BookingRepeatDraft = {
 const MAX_BOOKING_NO_ATTEMPTS = 5;
 const GROOMING_CAPACITY = 3;
 
+type DailyScheduleRpcRow = {
+  booking_id: string;
+  booking_no: string;
+  booking_type: BookingType;
+  status: BookingStatus;
+  payment_status: DailyScheduleItem["payment_status"];
+  start_at: string;
+  end_at: string;
+  customer_name: string;
+  customer_phone?: string | null;
+  pet_name: string;
+  room_name: string | null;
+  services_summary: string | null;
+  total_amount: number | string;
+};
+
 function toSingle<T>(value: T | T[] | null | undefined) {
   return Array.isArray(value) ? value[0] : value;
 }
@@ -160,10 +176,30 @@ function buildFallbackBookingNo(date = new Date()) {
 }
 
 export async function getDailySchedule(day: string): Promise<DailyScheduleItem[]> {
-  const startAt = `${day}T00:00:00.000Z`;
-  const endAtExclusive = new Date(new Date(startAt).getTime() + 24 * 60 * 60 * 1000).toISOString();
+  const supabase = createAdminClient();
+  const { data, error } = await supabase.rpc("get_daily_schedule", {
+    p_day: day
+  });
 
-  return getScheduleInRange(startAt, endAtExclusive);
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return ((data ?? []) as DailyScheduleRpcRow[]).map((item) => ({
+    booking_id: item.booking_id,
+    booking_no: item.booking_no,
+    booking_type: item.booking_type,
+    status: item.status,
+    payment_status: item.payment_status,
+    start_at: item.start_at,
+    end_at: item.end_at,
+    customer_name: item.customer_name,
+    customer_phone: item.customer_phone ?? null,
+    pet_name: item.pet_name,
+    room_name: item.room_name,
+    services_summary: item.services_summary ?? "",
+    total_amount: Number(item.total_amount)
+  }));
 }
 
 export async function getScheduleByStatus(status: BookingStatus): Promise<DailyScheduleItem[]> {
@@ -257,9 +293,7 @@ export async function getScheduleMonthSummaryInRange(startAt: string, endAtExclu
       `
     )
     .lt("start_at", endAtExclusive)
-    .gt("end_at", startAt)
-    .order("start_at", { ascending: true })
-    .order("created_at", { ascending: true });
+    .gt("end_at", startAt);
 
   if (error) {
     throw new Error(error.message);

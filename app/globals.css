@@ -214,6 +214,19 @@ textarea:focus-visible {
   background: rgba(255, 255, 255, 0.55);
 }
 
+.schedule-data-loading {
+  min-height: 60vh;
+}
+
+.schedule-refresh-note {
+  position: sticky;
+  top: 12px;
+  z-index: 8;
+  border: 1px solid rgba(178, 125, 75, 0.18);
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: var(--shadow-sm);
+}
+
 @keyframes loading-shimmer {
   to {
     transform: translateX(100%);

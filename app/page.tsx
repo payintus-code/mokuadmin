@@ -1,6 +1,7 @@
 import { AlertCircle, CalendarDays, Coins, Home, Hotel, PawPrint, PlusSquare, Users } from "lucide-react";
 import Link from "next/link";
 import { EmptyState } from "@/components/ui/empty-state";
+import { DashboardSchedulePrefetch } from "@/components/ui/dashboard-schedule-prefetch";
 import { MetricCard } from "@/components/ui/metric-card";
 import { PaymentStatusBadge } from "@/components/ui/payment-status-badge";
 import { PendingLink } from "@/components/ui/pending-link";
@@ -134,9 +135,9 @@ export default async function DashboardPage() {
             <Link className="btn btn-primary" href="/bookings/new">
               สร้างคิวใหม่
             </Link>
-            <Link className="btn btn-secondary" href="/schedule">
+            <PendingLink className="btn btn-secondary" href="/schedule">
               ดูตารางคิววันนี้
-            </Link>
+            </PendingLink>
           </div>
         </section>
 
@@ -170,6 +171,7 @@ export default async function DashboardPage() {
 
   return (
     <main className="stack dashboard-page">
+      <DashboardSchedulePrefetch />
       <section className="card frontdesk-hero dashboard-desktop-section">
         <div className="frontdesk-hero-copy">
           <div className="section-kicker">Front Desk</div>
@@ -182,10 +184,10 @@ export default async function DashboardPage() {
             <PlusSquare size={18} strokeWidth={2.2} />
             <span>สร้างคิวใหม่</span>
           </Link>
-          <Link className="btn btn-secondary" href="/schedule">
+          <PendingLink className="btn btn-secondary" href="/schedule">
             <CalendarDays size={18} strokeWidth={2.2} />
             <span>ดูตารางคิววันนี้</span>
-          </Link>
+          </PendingLink>
         </div>
       </section>
 
@@ -228,16 +230,16 @@ export default async function DashboardPage() {
             <div className="section-kicker">Pending Queue</div>
             <h2 className="section-title">รายการที่รอดำเนินการ</h2>
           </div>
-          <Link className="tap-row-link" href="/schedule">
-            <span>ไปตารางวันนี้</span>
-            <span aria-hidden="true">›</span>
-          </Link>
         </div>
 
         {pendingMobileItems.length ? (
           <div className="dashboard-mobile-pending-list">
             {pendingMobileItems.map((item) => (
-              <article key={`mobile-pending-${item.booking_id}`} className="work-queue-item dashboard-mobile-pending-item">
+              <Link
+                key={`mobile-pending-${item.booking_id}`}
+                className="work-queue-item dashboard-mobile-pending-item dashboard-mobile-pending-link"
+                href={`/payments/${item.booking_id}`}
+              >
                 <div className="work-queue-item-top">
                   <div>
                     <strong>
@@ -248,15 +250,7 @@ export default async function DashboardPage() {
                   <PaymentStatusBadge status={item.payment_status} />
                 </div>
                 <div className="muted">{item.room_name || item.services_summary || item.booking_no}</div>
-                <BookingQuickActions
-                  bookingId={item.booking_id}
-                  status={item.status}
-                  paymentStatus={item.payment_status}
-                  customerPhone={item.customer_phone}
-                  showReceipt={false}
-                  compact
-                />
-              </article>
+              </Link>
             ))}
           </div>
         ) : (
@@ -296,10 +290,10 @@ export default async function DashboardPage() {
             <div className="section-kicker">Today Work Queue</div>
             <h2 className="section-title">งานหน้าร้านวันนี้</h2>
           </div>
-          <Link className="tap-row-link" href="/schedule">
+          <PendingLink className="tap-row-link" href="/schedule">
             <span>ไปตารางวันนี้</span>
             <span aria-hidden="true">›</span>
-          </Link>
+          </PendingLink>
         </div>
 
         <div className="work-queue-grid">
@@ -351,10 +345,10 @@ export default async function DashboardPage() {
               <div className="section-kicker">Next Up</div>
               <h2 className="section-title">คิวถัดไป</h2>
             </div>
-            <Link className="tap-row-link" href="/schedule">
+            <PendingLink className="tap-row-link" href="/schedule">
               <span>ดูทั้งหมด</span>
               <span aria-hidden="true">›</span>
-            </Link>
+            </PendingLink>
           </div>
 
           {nextBookings.length ? (

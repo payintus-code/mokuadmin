@@ -424,3 +424,65 @@ $$;
 
 revoke all on function public.sync_booking_income_transaction_atomic(uuid, public.booking_type, text, uuid, numeric, text, text, date) from public;
 grant execute on function public.sync_booking_income_transaction_atomic(uuid, public.booking_type, text, uuid, numeric, text, text, date) to service_role;
+
+create index if not exists idx_bookings_non_cancelled_status_start_at
+  on public.bookings (status, start_at)
+  where status <> 'cancelled';
+
+create or replace function public.get_unpaid_bookings()
+returns table (
+  booking_id uuid, booking_no text, booking_type public.booking_type,
+  status public.booking_status, payment_status public.payment_status,
+  start_at timestamptz, end_at timestamptz, customer_name text,
+  customer_phone text, pet_name text, room_name text, services_summary text,
+  total_amount numeric, paid_amount numeric
+)
+language sql stable security definer set search_path = public
+as $$
+  select b.id, b.booking_no, b.booking_type, b.status,
+    case when coalesce(bp.amount, 0) >= b.total_amount then 'paid'::public.payment_status
+         else coalesce(bp.status, 'pending'::public.payment_status) end,
+    b.start_at, b.end_at, c.full_name, c.phone,
+    concat_ws(', ', p.name, sp.name), r.name, coalesce(si.services_summary, ''),
+    b.total_amount, coalesce(bp.amount, 0)
+  from public.bookings b
+  join public.customers c on c.id = b.customer_id
+  join public.pets p on p.id = b.pet_id
+  left join public.pets sp on sp.id = b.secondary_pet_id
+  left join public.rooms r on r.id = b.room_id
+  left join public.booking_payments bp on bp.booking_id = b.id
+  left join lateral (
+    select string_agg(s.name, ', ' order by s.name) as services_summary
+    from public.booking_items bi join public.services s on s.id = bi.service_id
+    where bi.booking_id = b.id
+  ) si on true
+  where b.status <> 'cancelled' and b.total_amount > 0
+    and coalesce(bp.amount, 0) < b.total_amount
+  order by b.start_at asc, b.created_at asc;
+$$;
+
+revoke all on function public.get_unpaid_bookings() from public;
+grant execute on function public.get_unpaid_bookings() to service_role;
+
+create or replace function public.get_dashboard_queue_counts(p_day date)
+returns table (today_all bigint, today_pending bigint, today_done bigint, unpaid bigint)
+language sql stable security definer set search_path = public
+as $$
+  select
+    count(*) filter (where day_booking.id is not null),
+    count(*) filter (where day_booking.status in ('pending', 'confirmed', 'in_progress')),
+    count(*) filter (where day_booking.status = 'done'),
+    (select count(*)
+     from public.bookings ub
+     left join public.booking_payments up on up.booking_id = ub.id
+     where ub.status <> 'cancelled' and ub.total_amount > 0
+       and coalesce(up.amount, 0) < ub.total_amount)
+  from (
+    select b.id, b.status
+    from public.bookings b
+    where tstzrange(b.start_at, b.end_at, '[)') && tstzrange(p_day::timestamptz, (p_day + 1)::timestamptz, '[)')
+  ) day_booking;
+$$;
+
+revoke all on function public.get_dashboard_queue_counts(date) from public;
+grant execute on function public.get_dashboard_queue_counts(date) to service_role;

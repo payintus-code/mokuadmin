@@ -78,6 +78,15 @@ type DailyScheduleRpcRow = {
   total_amount: number | string;
 };
 
+type UnpaidBookingRpcRow = DailyScheduleRpcRow;
+
+export type DashboardQueueCounts = {
+  todayAll: number;
+  todayPending: number;
+  todayDone: number;
+  unpaid: number;
+};
+
 function toSingle<T>(value: T | T[] | null | undefined) {
   return Array.isArray(value) ? value[0] : value;
 }
@@ -513,6 +522,44 @@ export async function createBookingRecord(input: CreateBookingInput): Promise<st
   }
 
   return bookingId as string;
+}
+
+export async function getUnpaidBookings(): Promise<DailyScheduleItem[]> {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase.rpc("get_unpaid_bookings");
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return ((data ?? []) as UnpaidBookingRpcRow[]).map((item) => ({
+    booking_id: item.booking_id,
+    booking_no: item.booking_no,
+    booking_type: item.booking_type,
+    status: item.status,
+    payment_status: item.payment_status,
+    start_at: item.start_at,
+    end_at: item.end_at,
+    customer_name: item.customer_name,
+    customer_phone: item.customer_phone ?? null,
+    pet_name: item.pet_name,
+    room_name: item.room_name,
+    services_summary: item.services_summary ?? "",
+    total_amount: Number(item.total_amount)
+  }));
+}
+
+export async function getDashboardQueueCounts(day: string): Promise<DashboardQueueCounts> {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase.rpc("get_dashboard_queue_counts", { p_day: day });
+  if (error) throw new Error(error.message);
+  const row = Array.isArray(data) ? data[0] : data;
+  return {
+    todayAll: Number(row?.today_all ?? 0),
+    todayPending: Number(row?.today_pending ?? 0),
+    todayDone: Number(row?.today_done ?? 0),
+    unpaid: Number(row?.unpaid ?? 0)
+  };
 }
 
 export async function updateBookingRecord(

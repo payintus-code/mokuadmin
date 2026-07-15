@@ -239,6 +239,7 @@ create index if not exists idx_bookings_end_at on public.bookings (end_at);
 create index if not exists idx_bookings_time_range_gist on public.bookings using gist (tstzrange(start_at, end_at, '[)'));
 create index if not exists idx_bookings_done_start_at on public.bookings (start_at desc) where status = 'done';
 create index if not exists idx_bookings_done_type_start_at on public.bookings (booking_type, start_at desc) where status = 'done';
+create index if not exists idx_bookings_non_cancelled_status_start_at on public.bookings (status, start_at) where status <> 'cancelled';
 create index if not exists idx_cash_transactions_booking_type_date_created on public.cash_transactions (booking_id, transaction_type, transaction_date, created_at) where booking_id is not null;
 
 do $$
@@ -404,6 +405,26 @@ as $$
   where tstzrange(b.start_at, b.end_at, '[)') && tstzrange(p_day::timestamptz, (p_day + 1)::timestamptz, '[)')
   group by b.id, c.full_name, c.phone, p1.name, p2.name, r.name, bp.status, bp.amount
   order by b.start_at, b.created_at;
+$$;
+
+create or replace function public.get_dashboard_queue_counts(p_day date)
+returns table (today_all bigint, today_pending bigint, today_done bigint, unpaid bigint)
+language sql stable security definer set search_path = public
+as $$
+  select
+    count(*) filter (where day_booking.id is not null),
+    count(*) filter (where day_booking.status in ('pending', 'confirmed', 'in_progress')),
+    count(*) filter (where day_booking.status = 'done'),
+    (select count(*)
+     from public.bookings ub
+     left join public.booking_payments up on up.booking_id = ub.id
+     where ub.status <> 'cancelled' and ub.total_amount > 0
+       and coalesce(up.amount, 0) < ub.total_amount)
+  from (
+    select b.id, b.status
+    from public.bookings b
+    where tstzrange(b.start_at, b.end_at, '[)') && tstzrange(p_day::timestamptz, (p_day + 1)::timestamptz, '[)')
+  ) day_booking;
 $$;
 
 create or replace function public.get_available_rooms(

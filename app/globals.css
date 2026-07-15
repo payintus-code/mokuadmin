@@ -4058,3 +4058,91 @@ textarea:focus-visible {
     font-size: 0.74rem;
   }
 }
+
+/* Zoomable schedule */
+.schedule-zoom-page { width: 100%; min-width: 0; }
+.zoom-schedule { --zoom-grooming: #d96b52; --zoom-grooming-soft: #fff0e9; --zoom-hotel: #668b76; --zoom-hotel-soft: #eaf4ed; min-width: 0; touch-action: pan-x pan-y; }
+.zoom-toolbar { position: sticky; top: 10px; z-index: 20; display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 14px; padding: 12px 14px; border: 1px solid rgba(123, 83, 54, .14); border-radius: 20px; background: rgba(255, 250, 244, .9); box-shadow: 0 16px 40px rgba(88, 57, 34, .12); backdrop-filter: blur(18px); }
+.zoom-toolbar-title { min-width: 0; }
+.zoom-toolbar-title span { color: var(--brand); font-size: .72rem; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; }
+.zoom-toolbar-title h1 { margin: 2px 0 0; font-size: clamp(1.05rem, 2vw, 1.4rem); line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.zoom-toolbar-actions { display: flex; align-items: center; gap: 7px; }
+.zoom-icon-button, .zoom-today-button { min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; border: 1px solid var(--line); border-radius: 14px; background: var(--card); color: var(--text); font: inherit; font-weight: 750; cursor: pointer; }
+.zoom-icon-button:disabled { cursor: default; opacity: .35; }
+.zoom-icon-button:hover:not(:disabled), .zoom-today-button:hover { background: var(--accent-soft); }
+.zoom-toolbar-divider { width: 1px; height: 28px; background: var(--line); }
+.zoom-loading { margin: 0 0 10px; color: var(--brand-strong); font-size: .84rem; font-weight: 700; }
+.zoom-view-stage { animation: zoom-view-in .24s ease both; }
+@keyframes zoom-view-in { from { opacity: 0; transform: scale(.985) translateY(5px); } to { opacity: 1; transform: none; } }
+.zoom-month-card, .zoom-timeline-card { overflow: hidden; border: 1px solid rgba(123, 83, 54, .13); border-radius: 22px; background: rgba(255, 253, 249, .96); box-shadow: var(--shadow-sm); }
+.zoom-month-weekdays, .zoom-month-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
+.zoom-month-weekdays { padding: 10px 8px 7px; color: var(--muted); text-align: center; font-size: .75rem; font-weight: 800; }
+.zoom-month-grid { border-top: 1px solid var(--line); }
+.zoom-month-day { position: relative; min-width: 0; min-height: clamp(74px, 12vw, 116px); padding: 9px; border: 0; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); background: transparent; color: var(--text); text-align: left; cursor: pointer; }
+.zoom-month-day:nth-child(7n) { border-right: 0; }
+.zoom-month-day:hover, .zoom-month-day:focus-visible { z-index: 1; background: var(--accent-soft); }
+.zoom-month-day.is-outside { background: rgba(241, 234, 224, .38); color: var(--muted); }
+.zoom-month-number { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; font-weight: 800; }
+.zoom-month-day.is-today .zoom-month-number { background: var(--brand); color: #fff; box-shadow: 0 7px 16px rgba(139, 94, 60, .24); }
+.zoom-month-count { position: absolute; top: 10px; right: 10px; color: var(--muted); font-size: .75rem; font-weight: 800; }
+.zoom-month-dots { display: flex; gap: 4px; margin-top: 6px; }
+.zoom-month-dots i { width: 7px; height: 7px; border-radius: 50%; }
+.zoom-month-dots .is-grooming { background: var(--zoom-grooming); }
+.zoom-month-dots .is-hotel { background: var(--zoom-hotel); }
+.zoom-month-day small { display: block; margin-top: 5px; color: var(--text-soft); font-size: .72rem; }
+.zoom-day-header, .zoom-hotel-lane { display: grid; grid-template-columns: 58px minmax(0, 1fr); border-bottom: 1px solid var(--line); }
+.zoom-day-header-grid { display: grid; min-width: 0; }
+.zoom-day-header-grid button { min-height: 58px; border: 0; border-left: 1px solid var(--line); background: transparent; color: var(--muted); cursor: pointer; }
+.zoom-day-header-grid button span, .zoom-day-header-grid button strong { display: block; }
+.zoom-day-header-grid button strong { margin-top: 2px; color: var(--text); font-size: 1.05rem; }
+.zoom-day-header-grid button.is-today strong { color: var(--brand); }
+.zoom-time-gutter-label { padding: 10px 6px; color: var(--muted); font-size: .7rem; text-align: center; }
+.zoom-hotel-grid { display: grid; gap: 4px; padding: 6px; min-width: 0; }
+.zoom-hotel-event { min-width: 0; min-height: 38px; padding: 5px 8px; border: 1px solid rgba(83, 123, 98, .22); border-radius: 10px; background: var(--zoom-hotel-soft); color: #315d45; text-align: left; cursor: pointer; overflow: hidden; }
+.zoom-hotel-event strong, .zoom-hotel-event span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.zoom-hotel-event span { font-size: .7rem; opacity: .8; }
+.zoom-timeline-scroll { max-height: calc(100vh - 250px); min-height: 420px; overflow: auto; overscroll-behavior: contain; }
+.zoom-timeline { position: relative; display: grid; grid-template-columns: 58px minmax(0, 1fr); min-width: max-content; }
+.zoom-hour-labels { position: relative; width: 58px; background: rgba(251, 247, 241, .92); }
+.zoom-hour-labels span { position: absolute; right: 8px; transform: translateY(-50%); color: var(--muted); font-size: .67rem; font-variant-numeric: tabular-nums; }
+.zoom-time-days { display: grid; min-width: 0; height: 100%; }
+.zoom-time-day { position: relative; min-width: 0; height: 100%; border-left: 1px solid var(--line); }
+.zoom-time-day > i { position: absolute; left: 0; right: 0; height: 1px; background: rgba(123, 83, 54, .09); pointer-events: none; }
+.zoom-now-line { position: absolute; z-index: 4; left: 0; right: 0; height: 2px; background: #e04f43; pointer-events: none; }
+.zoom-now-line::before { content: ""; position: absolute; left: -4px; top: -3px; width: 8px; height: 8px; border-radius: 50%; background: #e04f43; }
+.zoom-timed-event { position: absolute; z-index: 3; min-width: 0; padding: 5px 7px; border: 1px solid rgba(193, 91, 63, .22); border-left: 4px solid var(--zoom-grooming); border-radius: 10px; background: var(--zoom-grooming-soft); color: #653323; text-align: left; cursor: pointer; overflow: hidden; box-shadow: 0 5px 12px rgba(118, 60, 43, .08); }
+.zoom-timed-event time, .zoom-timed-event strong, .zoom-timed-event span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.zoom-timed-event time { font-size: .64rem; font-weight: 800; }
+.zoom-timed-event strong { font-size: .79rem; }
+.zoom-timed-event span { font-size: .68rem; opacity: .82; }
+.zoom-event-dialog { width: min(440px, calc(100vw - 24px)); max-height: calc(100vh - 24px); margin: auto 12px auto auto; padding: 0; border: 0; border-radius: 24px; background: var(--card); color: var(--text); box-shadow: 0 30px 80px rgba(56, 37, 24, .3); }
+.zoom-event-dialog::backdrop { background: rgba(48, 35, 27, .34); backdrop-filter: blur(4px); }
+.zoom-event-sheet { display: grid; gap: 16px; padding: 20px; }
+.zoom-event-sheet-head { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
+.zoom-event-sheet-head h2 { margin: 4px 0 0; }
+.zoom-event-status, .zoom-event-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.zoom-event-sheet dl { display: grid; gap: 10px; margin: 0; }
+.zoom-event-sheet dl > div { display: grid; grid-template-columns: 90px 1fr; gap: 10px; padding-bottom: 9px; border-bottom: 1px solid var(--line); }
+.zoom-event-sheet dt { color: var(--muted); }
+.zoom-event-sheet dd { margin: 0; font-weight: 700; }
+
+@media (max-width: 760px) {
+  .schedule-zoom-page { margin: -4px 0 0; }
+  .zoom-toolbar { top: 6px; display: grid; gap: 10px; padding: 10px; border-radius: 18px; }
+  .zoom-toolbar-actions { overflow-x: auto; padding-bottom: 2px; }
+  .zoom-toolbar-divider { display: none; }
+  .zoom-month-card { border-radius: 18px; }
+  .zoom-month-day { min-height: 66px; padding: 5px; }
+  .zoom-month-number { width: 27px; height: 27px; font-size: .84rem; }
+  .zoom-month-count, .zoom-month-day small { display: none; }
+  .zoom-month-dots { margin-top: 4px; justify-content: center; }
+  .zoom-timeline-card.is-week .zoom-day-header, .zoom-timeline-card.is-week .zoom-hotel-lane { min-width: 828px; }
+  .zoom-timeline-card.is-week .zoom-timeline { min-width: 828px; }
+  .zoom-timeline-scroll { max-height: calc(100vh - 260px); }
+  .zoom-event-dialog { width: 100%; max-width: none; max-height: 88vh; margin: auto 0 0; border-radius: 24px 24px 0 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .zoom-view-stage { animation: none; }
+  .zoom-timeline-scroll { scroll-behavior: auto; }
+}

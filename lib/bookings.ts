@@ -2,6 +2,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { resolvePaymentStatus } from "@/lib/payment-status";
 import { createClient } from "@/lib/supabase/server";
 import { evaluateGroomingDraftAvailability, type GroomingOverlapRow } from "@/lib/grooming-draft";
+import { formatCreateBookingError } from "@/lib/booking-errors";
 import type {
   BookingDetailViewModel,
   BookingPayment,
@@ -518,11 +519,12 @@ export async function createBookingRecord(input: CreateBookingInput): Promise<st
   });
 
   if (error || !bookingId) {
-    throw new Error(error?.message ?? "Unable to create booking");
+    throw new Error(formatCreateBookingError(error));
   }
 
   return bookingId as string;
 }
+
 
 export async function getUnpaidBookings(): Promise<DailyScheduleItem[]> {
   const supabase = createAdminClient();

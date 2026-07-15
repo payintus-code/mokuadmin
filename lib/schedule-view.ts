@@ -14,7 +14,7 @@ import {
   subMilliseconds
 } from "date-fns";
 import { th } from "date-fns/locale";
-import { getDailySchedule, getScheduleMonthSummaryInRange } from "@/lib/bookings";
+import { getDailySchedule, getScheduleInRange, getScheduleMonthSummaryInRange } from "@/lib/bookings";
 import {
   buildTodayWorkQueue,
   buildWorkRiskAlerts,
@@ -35,6 +35,11 @@ export type ScheduleSearchParamsInput = {
   work?: string;
 };
 
+export type ScheduleCalendarQueueItemViewModel = Pick<
+  DailyScheduleItem,
+  "booking_id" | "booking_type" | "start_at" | "pet_name" | "services_summary"
+>;
+
 export type ScheduleCalendarCellViewModel = {
   date: string;
   inCurrentMonth: boolean;
@@ -43,6 +48,7 @@ export type ScheduleCalendarCellViewModel = {
   totalCount: number;
   groomingCount: number;
   hotelCount: number;
+  items: ScheduleCalendarQueueItemViewModel[];
 };
 
 export type ScheduleViewModel = {
@@ -149,7 +155,7 @@ function groupItemsByDate<T extends { start_at: string; end_at: string }>(items:
   return grouped;
 }
 
-function buildCalendarSummary(items: ScheduleMonthSummaryItem[]) {
+function buildCalendarSummary<T extends { booking_type: BookingType }>(items: T[]) {
   let groomingCount = 0;
   let hotelCount = 0;
 
@@ -168,7 +174,14 @@ function buildCalendarSummary(items: ScheduleMonthSummaryItem[]) {
   };
 }
 
-export async function buildScheduleViewModel(params: ScheduleSearchParamsInput = {}): Promise<ScheduleViewModel> {
+function isDailyScheduleItem(item: DailyScheduleItem | ScheduleMonthSummaryItem): item is DailyScheduleItem {
+  return "pet_name" in item;
+}
+
+export async function buildScheduleViewModel(
+  params: ScheduleSearchParamsInput = {},
+  options?: { includeCalendarItems?: boolean }
+): Promise<ScheduleViewModel> {
   const selectedMonthDate = parseMonthParam(params.month);
   const today = startOfDay(new Date());
   const selectedDateFallback = isSameMonth(selectedMonthDate, today) ? today : selectedMonthDate;
@@ -185,24 +198,38 @@ export async function buildScheduleViewModel(params: ScheduleSearchParamsInput =
   const rangeStartIso = `${format(visibleStart, "yyyy-MM-dd")}T00:00:00.000Z`;
   const rangeEndExclusiveIso = `${format(rangeEndExclusive, "yyyy-MM-dd")}T00:00:00.000Z`;
   const selectedDateKey = format(selectedDate, "yyyy-MM-dd");
-  const [rangeSummaryItems, selectedDayItems] = await Promise.all([
-    getScheduleMonthSummaryInRange(rangeStartIso, rangeEndExclusiveIso),
+  const [rangeItems, selectedDayItems] = await Promise.all([
+    options?.includeCalendarItems
+      ? getScheduleInRange(rangeStartIso, rangeEndExclusiveIso)
+      : getScheduleMonthSummaryInRange(rangeStartIso, rangeEndExclusiveIso),
     getDailySchedule(selectedDateKey)
   ]);
-  const filteredSummaryItems = filterItems(rangeSummaryItems, groomingEnabled, hotelEnabled);
-  const groupedSummaryItems = groupItemsByDate(filteredSummaryItems, visibleStart, visibleEnd);
+  const filteredRangeItems = filterItems(rangeItems, groomingEnabled, hotelEnabled);
+  const groupedRangeItems = groupItemsByDate(filteredRangeItems, visibleStart, visibleEnd);
   const selectedItems = filterItems(selectedDayItems, groomingEnabled, hotelEnabled);
   const cells: ScheduleCalendarCellViewModel[] = [];
 
   for (let cursor = visibleStart; cursor <= visibleEnd; cursor = addDays(cursor, 1)) {
     const key = format(cursor, "yyyy-MM-dd");
-    const summary = buildCalendarSummary(groupedSummaryItems.get(key) ?? []);
+    const dayItems = groupedRangeItems.get(key) ?? [];
+    const summary = buildCalendarSummary(dayItems);
 
     cells.push({
       date: key,
       inCurrentMonth: isSameMonth(cursor, selectedMonthDate),
       isSelected: isSameDay(cursor, selectedDate),
       isToday: isSameDay(cursor, today),
+      items: dayItems.flatMap((item) =>
+        isDailyScheduleItem(item)
+          ? [{
+              booking_id: item.booking_id,
+              booking_type: item.booking_type,
+              start_at: item.start_at,
+              pet_name: item.pet_name,
+              services_summary: item.services_summary
+            }]
+          : []
+      ),
       ...summary
     });
   }

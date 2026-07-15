@@ -47,18 +47,18 @@ export async function createCustomer(formData: FormData) {
     throw new Error(error?.message ?? "Unable to create customer");
   }
 
-  for (const pet of petDrafts) {
-    const weightKg = pet.weightKg ? Number(pet.weightKg) : null;
-
-    const { error: petError } = await supabase.from("pets").insert({
-      customer_id: customer.id,
-      name: pet.name,
-      species: pet.species,
-      breed: pet.breed || null,
-      weight_kg: weightKg,
-      temperament_note: pet.temperamentNote || null,
-      allergy_note: pet.allergyNote || null
-    });
+  if (petDrafts.length) {
+    const { error: petError } = await supabase.from("pets").insert(
+      petDrafts.map((pet) => ({
+        customer_id: customer.id,
+        name: pet.name,
+        species: pet.species,
+        breed: pet.breed || null,
+        weight_kg: pet.weightKg ? Number(pet.weightKg) : null,
+        temperament_note: pet.temperamentNote || null,
+        allergy_note: pet.allergyNote || null
+      }))
+    );
 
     if (petError) {
       throw new Error(petError.message);

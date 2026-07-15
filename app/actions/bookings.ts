@@ -71,16 +71,19 @@ async function findCustomerByNormalizedPhone(supabase: ReturnType<typeof createA
     return null;
   }
 
-  const { data: customers, error } = await supabase
+  const { data: customer, error } = await supabase
     .from("customers")
     .select("id, full_name, phone, facebook_name, note")
-    .eq("is_active", true);
+    .eq("normalized_phone", normalizedPhone)
+    .eq("is_active", true)
+    .limit(1)
+    .maybeSingle();
 
   if (error) {
     throw new Error(error.message);
   }
 
-  return (customers ?? []).find((customer) => normalizePhone(customer.phone) === normalizedPhone) ?? null;
+  return customer;
 }
 
 export async function createBooking(formData: FormData) {

@@ -6,10 +6,11 @@ import { SetupNotice } from "@/components/ui/setup-notice";
 import { requireAdmin } from "@/lib/auth";
 import { hasSupabaseEnv } from "@/lib/env";
 import { formatBaht, formatDateInput } from "@/lib/format";
-import { getCashTransactionsByRange, getPendingDepositTotalByRange, groupTransactionsByDate, summarizeTransactions } from "@/lib/finance";
+import { getCashTransactionsByRange, getFinanceReportSummary, groupTransactionsByDate } from "@/lib/finance";
 import type { TransactionType } from "@/types/database";
 
 export const dynamic = "force-dynamic";
+const REPORT_PAGE_SIZE = 100;
 
 type TransactionFilter = TransactionType | "all";
 
@@ -104,7 +105,7 @@ function getReportMode(value: string | undefined) {
 export default async function FinanceReportPage({
   searchParams
 }: {
-  searchParams?: Promise<{ mode?: string; date?: string; start?: string; end?: string; month?: string; type?: string; commission?: string }>;
+  searchParams?: Promise<{ mode?: string; date?: string; start?: string; end?: string; month?: string; type?: string; commission?: string; page?: string }>;
 }) {
   const params = (await searchParams) ?? {};
   const today = formatDateInput();
@@ -113,6 +114,7 @@ export default async function FinanceReportPage({
   const month = params.month ?? today.slice(0, 7);
   const type = getTransactionFilter(params.type);
   const showCommission = params.commission === "1";
+  const page = Math.max(1, Number.parseInt(params.page ?? "1", 10) || 1);
 
   let startDate = date;
   let endDate = date;
@@ -146,14 +148,17 @@ export default async function FinanceReportPage({
 
   await requireAdmin();
 
-  const [transactions, depositTotal] = await Promise.all([
-    getCashTransactionsByRange(startDate, endDate),
-    getPendingDepositTotalByRange(startDate, endDate)
+  const [transactionsWithSentinel, summary] = await Promise.all([
+    getCashTransactionsByRange(startDate, endDate, {
+      offset: (page - 1) * REPORT_PAGE_SIZE,
+      limit: REPORT_PAGE_SIZE + 1,
+      transactionType: type === "all" ? undefined : type
+    }),
+    getFinanceReportSummary(startDate, endDate, type === "all" ? undefined : type)
   ]);
-  const filteredTransactions =
-    type === "all" ? transactions : transactions.filter((transaction) => transaction.transaction_type === type);
-  const summary = summarizeTransactions(filteredTransactions);
-  const groups = groupTransactionsByDate(filteredTransactions);
+  const hasNextPage = transactionsWithSentinel.length > REPORT_PAGE_SIZE;
+  const transactions = transactionsWithSentinel.slice(0, REPORT_PAGE_SIZE);
+  const groups = groupTransactionsByDate(transactions);
   const showIncomeSections = type !== "expense";
   const staffCommission = calculateStaffCommission(summary.service_income_total);
 
@@ -277,7 +282,7 @@ export default async function FinanceReportPage({
             </div>
             <div className="card">
               <div className="muted">ยอดมัดจำ (ยังไม่ paid)</div>
-              <h2 style={{ margin: "6px 0 0", color: "var(--warning)" }}>{formatBaht(depositTotal)}</h2>
+              <h2 style={{ margin: "6px 0 0", color: "var(--warning)" }}>{formatBaht(summary.deposit_total)}</h2>
               <p className="muted" style={{ marginBottom: 0 }}>
                 ยอดนี้รวมอยู่ในรายรับรวมแล้ว
               </p>
@@ -373,6 +378,13 @@ export default async function FinanceReportPage({
           </div>
         )}
       </section>
+
+      {page > 1 || hasNextPage ? (
+        <nav className="btn-grid" aria-label="หน้ารายการการเงิน">
+          {page > 1 ? <Link className="btn btn-secondary" href={`/finance/report?${reportQuery}&page=${page - 1}`}>หน้าก่อน</Link> : <span />}
+          {hasNextPage ? <Link className="btn btn-secondary" href={`/finance/report?${reportQuery}&page=${page + 1}`}>หน้าถัดไป</Link> : null}
+        </nav>
+      ) : null}
     </main>
   );
 }

@@ -198,11 +198,12 @@ types/
 
 1. สร้างโปรเจกต์ Supabase
 2. เปิด SQL editor แล้วรัน [schema.sql](/C:/MokuPetAdmin/supabase/schema.sql)
-3. รัน [seed.sql](/C:/MokuPetAdmin/supabase/seed.sql)
-4. ตั้งค่า `.env.local` จาก [.env.example](/C:/MokuPetAdmin/.env.example)
-5. ติดตั้ง package ด้วย `npm install`
-6. รัน `npm run dev`
-7. เริ่มใช้งานที่หน้า Schedule และ Create Booking ก่อน
+3. รันไฟล์ใน `supabase/migrations` ตามลำดับชื่อไฟล์ เพื่อให้ function และ performance index ตรงกับ application version
+4. รัน [seed.sql](/C:/MokuPetAdmin/supabase/seed.sql)
+5. ตั้งค่า `.env.local` จาก [.env.example](/C:/MokuPetAdmin/.env.example)
+6. ติดตั้ง package ด้วย `npm install`
+7. รัน `npm run dev`
+8. เริ่มใช้งานที่หน้า Schedule และ Create Booking ก่อน
 
 ## 9. Development Plan
 

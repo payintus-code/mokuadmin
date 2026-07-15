@@ -3,6 +3,7 @@ import { ScheduleClient } from "@/components/ui/schedule-client";
 import { SetupNotice } from "@/components/ui/setup-notice";
 import { requireAppUser } from "@/lib/auth";
 import { hasSupabaseEnv } from "@/lib/env";
+import { buildScheduleViewModel } from "@/lib/schedule-view";
 
 type ScheduleSearchParams = Promise<{
   month?: string;
@@ -40,13 +41,15 @@ export default async function SchedulePage({ searchParams }: { searchParams?: Sc
   await requireAppUser();
 
   const params = (await searchParams) ?? {};
+  const initialData = await buildScheduleViewModel(params);
+  const queryString = buildQueryString(params);
 
   return (
     <main className="stack schedule-page">
       <div className="schedule-mobile-hidden">
         <PageHeader title="ตารางคิว" subtitle="มุมมองรายเดือนสำหรับกดดูคิวแต่ละวันได้ง่ายทั้งบนคอมและมือถือ" actionLabel="สร้างคิวใหม่" actionHref="/bookings/new" />
       </div>
-      <ScheduleClient queryString={buildQueryString(params)} />
+      <ScheduleClient key={queryString} queryString={queryString} initialData={initialData} />
     </main>
   );
 }

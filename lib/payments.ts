@@ -248,11 +248,13 @@ async function generateReceiptNo(prefix: string, issuedAt: Date, offset = 0) {
   );
 }
 
-export async function prepareBookingPayment(bookingId: string, options?: { useAdminClient?: boolean }): Promise<BookingPaymentSummary> {
+export async function prepareBookingPayment(
+  bookingId: string,
+  options?: { useAdminClient?: boolean; includeQr?: boolean }
+): Promise<BookingPaymentSummary> {
   const useAdminClient = options?.useAdminClient ?? false;
   const supabase = useAdminClient ? createAdminClient() : await createClient();
-  const shop = await getShopSettingsRecord(useAdminClient);
-  const { data, error } = await supabase
+  const bookingQuery = supabase
     .from("bookings")
     .select(
       `
@@ -272,6 +274,7 @@ export async function prepareBookingPayment(bookingId: string, options?: { useAd
     )
     .eq("id", bookingId)
     .maybeSingle();
+  const [shop, { data, error }] = await Promise.all([getShopSettingsRecord(useAdminClient), bookingQuery]);
 
   if (error || !data) {
     throw new Error(error?.message ?? "Booking not found");
@@ -293,14 +296,13 @@ export async function prepareBookingPayment(bookingId: string, options?: { useAd
   let promptpayPayload: string | null = null;
   let promptpayQrDataUrl: string | null = null;
 
-  if (shop.promptpay_target && remainingAmount > 0) {
+  if (options?.includeQr !== false && shop.promptpay_target && remainingAmount > 0) {
     try {
       promptpayPayload = buildPromptPayPayload(shop.promptpay_target, remainingAmount);
       promptpayQrDataUrl = await QRCode.toDataURL(promptpayPayload, { margin: 1, width: 320 });
     } catch (error) {
       console.error("Unable to generate PromptPay QR for booking payment", {
         bookingId,
-        promptpayTarget: shop.promptpay_target,
         remainingAmount,
         error: error instanceof Error ? error.message : error
       });
@@ -370,115 +372,19 @@ async function syncBookingIncomeTransaction(input: {
   note: string | null;
   transactionDate: string;
 }) {
-  const { data: existingIncomeRows, error: existingIncomeError } = await input.supabase
-    .from("cash_transactions")
-    .select("id, amount, transaction_date, created_at")
-    .eq("booking_id", input.bookingId)
-    .eq("transaction_type", "income")
-    .order("transaction_date", { ascending: true })
-    .order("created_at", { ascending: true });
+  const { error } = await input.supabase.rpc("sync_booking_income_transaction_atomic", {
+    p_booking_id: input.bookingId,
+    p_booking_type: input.bookingType,
+    p_booking_no: input.bookingNo,
+    p_customer_id: input.customerId,
+    p_amount: Number(input.amount.toFixed(2)),
+    p_method: input.method,
+    p_note: input.note,
+    p_transaction_date: input.transactionDate
+  });
 
-  if (existingIncomeError) {
-    throw new Error(existingIncomeError.message);
-  }
-
-  const existingIncome = (existingIncomeRows ?? []).map((row) => ({
-    id: row.id,
-    amount: Number(row.amount ?? 0)
-  }));
-  const nextAmount = Number(input.amount.toFixed(2));
-  const existingAmount = existingIncome.reduce((sum, row) => sum + row.amount, 0);
-  const amountDelta = Number((nextAmount - existingAmount).toFixed(2));
-
-  if (nextAmount <= 0) {
-    if (existingIncome.length) {
-      const existingIds = existingIncome.map((row) => row.id);
-      const { error: deleteIncomeError } = await input.supabase.from("cash_transactions").delete().in("id", existingIds);
-
-      if (deleteIncomeError) {
-        throw new Error(deleteIncomeError.message);
-      }
-    }
-
-    return;
-  }
-
-  const incomePayload = {
-    transaction_type: "income",
-    category: input.bookingType === "hotel" ? "hotel_income" : "service_income",
-    booking_id: input.bookingId,
-    customer_id: input.customerId,
-    title: input.bookingType === "hotel" ? `ชำระค่าโรงแรม ${input.bookingNo}` : `ชำระค่าบริการ ${input.bookingNo}`,
-    payment_method: input.method,
-    note: input.note
-  };
-
-  if (amountDelta > 0.0001) {
-    const { error: insertIncomeError } = await input.supabase.from("cash_transactions").insert({
-      ...incomePayload,
-      amount: amountDelta,
-      transaction_date: input.transactionDate
-    });
-
-    if (insertIncomeError) {
-      throw new Error(insertIncomeError.message);
-    }
-
-    return;
-  }
-
-  if (amountDelta < -0.0001) {
-    let remainingToReduce = Math.abs(amountDelta);
-
-    for (const row of [...existingIncome].reverse()) {
-      if (remainingToReduce <= 0.0001) {
-        break;
-      }
-
-      if (row.amount <= remainingToReduce + 0.0001) {
-        const { error: deleteIncomeError } = await input.supabase.from("cash_transactions").delete().eq("id", row.id);
-
-        if (deleteIncomeError) {
-          throw new Error(deleteIncomeError.message);
-        }
-
-        remainingToReduce = Number((remainingToReduce - row.amount).toFixed(2));
-        continue;
-      }
-
-      const { error: updateIncomeError } = await input.supabase
-        .from("cash_transactions")
-        .update({
-          ...incomePayload,
-          amount: Number((row.amount - remainingToReduce).toFixed(2))
-        })
-        .eq("id", row.id);
-
-      if (updateIncomeError) {
-        throw new Error(updateIncomeError.message);
-      }
-
-      remainingToReduce = 0;
-    }
-
-    if (remainingToReduce > 0.0001) {
-      throw new Error("Unable to reconcile booking income transactions");
-    }
-
-    return;
-  }
-
-  const latestIncome = existingIncome.at(-1);
-
-  if (latestIncome) {
-    const { error: updateIncomeError } = await input.supabase
-      .from("cash_transactions")
-      .update(incomePayload)
-      .eq("id", latestIncome.id);
-
-    if (updateIncomeError) {
-      throw new Error(updateIncomeError.message);
-    }
+  if (error) {
+    throw new Error(error.message);
   }
 }
 
@@ -491,7 +397,7 @@ export async function createOrUpdateBookingPayment(input: {
   actorUserId?: string | null;
 }) {
   const supabase = createAdminClient();
-  const paymentInfo = await prepareBookingPayment(input.bookingId, { useAdminClient: true });
+  const paymentInfo = await prepareBookingPayment(input.bookingId, { useAdminClient: true, includeQr: false });
 
   if (paymentInfo.bookingStatus === "cancelled") {
     throw new Error("Cannot receive payment for a cancelled booking");
@@ -600,7 +506,7 @@ export async function updateBookingPayment(input: {
   actorUserId?: string | null;
 }) {
   const supabase = createAdminClient();
-  const paymentInfo = await prepareBookingPayment(input.bookingId, { useAdminClient: true });
+  const paymentInfo = await prepareBookingPayment(input.bookingId, { useAdminClient: true, includeQr: false });
 
   if (!paymentInfo.payment) {
     throw new Error("Payment record not found");
@@ -727,7 +633,7 @@ export async function confirmBookingPayment(input: {
 }
 
 export async function getReceiptData(bookingId: string): Promise<ReceiptViewModel> {
-  const paymentInfo = await prepareBookingPayment(bookingId, { useAdminClient: true });
+  const paymentInfo = await prepareBookingPayment(bookingId, { useAdminClient: true, includeQr: false });
 
   if (!paymentInfo.payment || paymentInfo.payment.status !== "paid" || !paymentInfo.payment.receipt_no || !paymentInfo.payment.paid_at) {
     throw new Error("Receipt is not available for this booking yet");

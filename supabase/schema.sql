@@ -1,4 +1,5 @@
 create extension if not exists btree_gist;
+create extension if not exists pg_trgm;
 
 do $$
 begin
@@ -197,6 +198,19 @@ create table if not exists public.booking_payments (
   constraint booking_payments_method_chk check (method in ('cash', 'promptpay_qr', 'transfer', 'card', 'other'))
 );
 
+create or replace function public.normalize_customer_phone(value text)
+returns text
+language sql
+immutable
+strict
+as $$
+  select regexp_replace(value, '[^0-9+]', '', 'g');
+$$;
+
+alter table public.customers
+  add column if not exists normalized_phone text
+  generated always as (public.normalize_customer_phone(phone)) stored;
+
 create index if not exists idx_pets_customer_id on public.pets (customer_id);
 create unique index if not exists idx_pets_customer_active_name_unique on public.pets (customer_id, name) where is_active = true;
 create index if not exists idx_bookings_customer_id on public.bookings (customer_id);
@@ -212,6 +226,20 @@ create index if not exists idx_cash_transactions_type_date on public.cash_transa
 create index if not exists idx_cash_transactions_booking_id on public.cash_transactions (booking_id);
 create index if not exists idx_booking_payments_booking_id on public.booking_payments (booking_id);
 create index if not exists idx_booking_payments_status on public.booking_payments (status);
+create unique index if not exists idx_customers_normalized_phone_unique on public.customers (normalized_phone);
+create index if not exists idx_customers_active_created_at on public.customers (created_at desc) where is_active = true;
+create index if not exists idx_pets_active_created_at on public.pets (created_at desc) where is_active = true;
+create index if not exists idx_customers_full_name_trgm on public.customers using gin (full_name gin_trgm_ops) where is_active = true;
+create index if not exists idx_customers_phone_trgm on public.customers using gin (phone gin_trgm_ops) where is_active = true;
+create index if not exists idx_customers_facebook_name_trgm on public.customers using gin (facebook_name gin_trgm_ops) where is_active = true and facebook_name is not null;
+create index if not exists idx_pets_name_trgm on public.pets using gin (name gin_trgm_ops) where is_active = true;
+create index if not exists idx_pets_species_trgm on public.pets using gin (species gin_trgm_ops) where is_active = true;
+create index if not exists idx_pets_breed_trgm on public.pets using gin (breed gin_trgm_ops) where is_active = true and breed is not null;
+create index if not exists idx_bookings_end_at on public.bookings (end_at);
+create index if not exists idx_bookings_time_range_gist on public.bookings using gist (tstzrange(start_at, end_at, '[)'));
+create index if not exists idx_bookings_done_start_at on public.bookings (start_at desc) where status = 'done';
+create index if not exists idx_bookings_done_type_start_at on public.bookings (booking_type, start_at desc) where status = 'done';
+create index if not exists idx_cash_transactions_booking_type_date_created on public.cash_transactions (booking_id, transaction_type, transaction_date, created_at) where booking_id is not null;
 
 do $$
 begin

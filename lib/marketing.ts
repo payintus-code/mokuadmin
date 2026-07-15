@@ -23,6 +23,18 @@ import type {
   PaymentMethod
 } from "@/types/database";
 
+type MarketingLifetimeCustomerRpcRow = {
+  customer_id: string;
+  customer_name: string;
+  customer_phone: string | null;
+  facebook_name: string | null;
+  customer_created_at: string | null;
+  last_booking_at: string;
+  booking_count: number | string;
+  total_spend: number | string;
+  pet_summary: string;
+};
+
 function toSingle<T>(value: T | T[] | null | undefined) {
   return Array.isArray(value) ? value[0] : value;
 }
@@ -261,27 +273,6 @@ export async function getMarketingDashboard(filters: MarketingDashboardFilters):
     .lt("start_at", endExclusiveIso)
     .order("start_at", { ascending: false });
 
-  let completedLifetimeQuery = supabase
-    .from("bookings")
-    .select(
-      `
-        id,
-        booking_type,
-        customer_id,
-        start_at,
-        end_at,
-        total_amount,
-        customers!inner(full_name, phone, facebook_name, created_at),
-        pets!bookings_pet_id_fkey(name, species, breed),
-        secondary_pets:pets!bookings_secondary_pet_id_fkey(name, species, breed),
-        rooms(name),
-        booking_items(qty, unit_price, services(name))
-      `
-    )
-    .eq("status", "done")
-    .lt("start_at", endExclusiveIso)
-    .order("start_at", { ascending: false });
-
   let rangeStatusQuery = supabase
     .from("bookings")
     .select(
@@ -298,13 +289,15 @@ export async function getMarketingDashboard(filters: MarketingDashboardFilters):
 
   if (filters.bookingType !== "all") {
     completedRangeQuery = completedRangeQuery.eq("booking_type", filters.bookingType);
-    completedLifetimeQuery = completedLifetimeQuery.eq("booking_type", filters.bookingType);
     rangeStatusQuery = rangeStatusQuery.eq("booking_type", filters.bookingType);
   }
 
-  const [rangeCompletedResult, lifetimeCompletedResult, rangeStatusResult, paymentResult] = await Promise.all([
+  const [rangeCompletedResult, lifetimeCustomerResult, rangeStatusResult, paymentResult] = await Promise.all([
     completedRangeQuery,
-    completedLifetimeQuery,
+    supabase.rpc("get_marketing_lifetime_customers", {
+      p_end_exclusive: endExclusiveIso,
+      p_booking_type: filters.bookingType === "all" ? null : filters.bookingType
+    }),
     rangeStatusQuery,
     supabase
       .from("cash_transactions")
@@ -318,8 +311,8 @@ export async function getMarketingDashboard(filters: MarketingDashboardFilters):
     throw new Error(rangeCompletedResult.error.message);
   }
 
-  if (lifetimeCompletedResult.error) {
-    throw new Error(lifetimeCompletedResult.error.message);
+  if (lifetimeCustomerResult.error) {
+    throw new Error(lifetimeCustomerResult.error.message);
   }
 
   if (rangeStatusResult.error) {
@@ -331,12 +324,6 @@ export async function getMarketingDashboard(filters: MarketingDashboardFilters):
   }
 
   const rangeCompletedBookings = (rangeCompletedResult.data ?? []).map((row) =>
-    mapBooking({
-      ...row,
-      booking_type: row.booking_type as BookingType
-    })
-  );
-  const lifetimeCompletedBookings = (lifetimeCompletedResult.data ?? []).map((row) =>
     mapBooking({
       ...row,
       booking_type: row.booking_type as BookingType
@@ -405,30 +392,17 @@ export async function getMarketingDashboard(filters: MarketingDashboardFilters):
   const topServices = aggregateTopServices(rangeCompletedBookings).slice(0, 8);
   const topRooms = aggregateTopRooms(rangeCompletedBookings).slice(0, 8);
 
-  const lifetimeCustomerMap = new Map<string, MarketingBookingSnapshot[]>();
-
-  for (const booking of lifetimeCompletedBookings) {
-    const current = lifetimeCustomerMap.get(booking.customerId) ?? [];
-    current.push(booking);
-    lifetimeCustomerMap.set(booking.customerId, current);
-  }
-
-  const lifetimeCustomerSnapshots: MarketingCustomerSnapshot[] = Array.from(lifetimeCustomerMap.entries()).map(([customerId, bookings]) => {
-    const ordered = [...bookings].sort((left, right) => new Date(right.startAt).getTime() - new Date(left.startAt).getTime());
-    const customer = ordered[0];
-
-    return {
-      customerId,
-      customerName: customer.customerName,
-      customerPhone: customer.customerPhone,
-      facebookName: customer.facebookName,
-      customerCreatedAt: customer.customerCreatedAt,
-      lastBookingAt: customer.startAt,
-      bookingCount: bookings.length,
-      totalSpend: bookings.reduce((sum, booking) => sum + booking.totalAmount, 0),
-      petSummary: getCustomerPetSummary(bookings)
-    };
-  });
+  const lifetimeCustomerSnapshots: MarketingCustomerSnapshot[] = ((lifetimeCustomerResult.data ?? []) as MarketingLifetimeCustomerRpcRow[]).map((customer) => ({
+    customerId: customer.customer_id,
+    customerName: customer.customer_name,
+    customerPhone: customer.customer_phone,
+    facebookName: customer.facebook_name,
+    customerCreatedAt: customer.customer_created_at,
+    lastBookingAt: customer.last_booking_at,
+    bookingCount: Number(customer.booking_count),
+    totalSpend: Number(customer.total_spend),
+    petSummary: customer.pet_summary
+  }));
 
   const winBackCustomers = segmentWinBackCustomers(lifetimeCustomerSnapshots, filters.endDate).slice(0, 10);
   const atRiskCustomers = winBackCustomers.filter((customer) => customer.is_at_risk).slice(0, 10);

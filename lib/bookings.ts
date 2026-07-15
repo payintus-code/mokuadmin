@@ -60,7 +60,6 @@ export type BookingRepeatDraft = {
 };
 
 
-const MAX_BOOKING_NO_ATTEMPTS = 5;
 const GROOMING_CAPACITY = 3;
 
 type DailyScheduleRpcRow = {
@@ -158,21 +157,6 @@ function assertStartBeforeEndStrict(startAt: string, endAt: string) {
   if (new Date(startAt).getTime() === new Date(endAt).getTime()) {
     throw new Error("End time must be after start time");
   }
-}
-
-function buildFallbackBookingNo(date = new Date()) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  const hours = String(date.getHours()).padStart(2, "0");
-  const minutes = String(date.getMinutes()).padStart(2, "0");
-  const seconds = String(date.getSeconds()).padStart(2, "0");
-  const milliseconds = String(date.getMilliseconds()).padStart(3, "0");
-  const randomSuffix = Math.floor(Math.random() * 1000)
-    .toString()
-    .padStart(3, "0");
-
-  return `BK${year}${month}${day}-${hours}${minutes}${seconds}${milliseconds}${randomSuffix}`;
 }
 
 export async function getDailySchedule(day: string): Promise<DailyScheduleItem[]> {
@@ -504,127 +488,31 @@ export async function createBookingRecord(input: CreateBookingInput): Promise<st
     throw new Error("กรุณาเลือกสัตว์เลี้ยงคนละตัว");
   }
 
-  const { data: pets, error: petsError } = await supabase.from("pets").select("id, customer_id").in("id", petIds);
+  const { data: bookingId, error } = await supabase.rpc("create_booking_atomic", {
+    p_booking_type: input.bookingType,
+    p_customer_id: input.customerId,
+    p_pet_id: input.petId,
+    p_secondary_pet_id: input.secondaryPetId ?? null,
+    p_room_id: input.roomId ?? null,
+    p_start_at: input.startAt,
+    p_end_at: input.endAt,
+    p_total_amount: input.totalAmount,
+    p_note: input.note ?? null,
+    p_actor_user_id: input.actorUserId ?? null,
+    p_items: (input.items ?? []).map((item) => ({
+      service_id: item.serviceId,
+      qty: item.qty,
+      unit_price: item.unitPrice,
+      duration_minutes: item.durationMinutes,
+      note: item.note ?? null
+    }))
+  });
 
-  if (petsError) {
-    throw new Error(petsError.message);
+  if (error || !bookingId) {
+    throw new Error(error?.message ?? "Unable to create booking");
   }
 
-  if ((pets ?? []).length !== petIds.length || (pets ?? []).some((pet) => pet.customer_id !== input.customerId)) {
-    throw new Error("สัตว์เลี้ยงที่เลือกไม่ตรงกับลูกค้าที่เลือก");
-  }
-
-  if (input.bookingType === "grooming") {
-    const groomingAvailability = await checkGroomingDraftAvailability(supabase, petIds, input.startAt, input.endAt);
-
-    if (!groomingAvailability.ok) {
-      throw new Error(groomingAvailability.message);
-    }
-  }
-
-  if (input.bookingType === "hotel" && input.roomId) {
-    const { data: room, error: roomError } = await supabase.from("rooms").select("id, max_pets").eq("id", input.roomId).single();
-
-    if (roomError || !room) {
-      throw new Error(roomError?.message ?? "ไม่พบห้องที่เลือก");
-    }
-
-    if (petIds.length > Number(room.max_pets)) {
-      throw new Error("ห้องนี้รองรับจำนวนแมวที่เลือกไม่พอ");
-    }
-  }
-
-  let bookingId: string | null = null;
-
-  for (let attempt = 0; attempt < MAX_BOOKING_NO_ATTEMPTS; attempt += 1) {
-    const fallbackBookingNo = buildFallbackBookingNo();
-    const { data: generatedBookingNo, error: bookingNoError } = await supabase.rpc("generate_booking_no");
-    const bookingNo = bookingNoError || !generatedBookingNo ? fallbackBookingNo : generatedBookingNo;
-
-    if (!bookingNo) {
-      throw new Error("Unable to generate booking number");
-    }
-
-    const { data: booking, error: bookingError } = await supabase
-      .from("bookings")
-      .insert({
-        booking_no: bookingNo,
-        booking_type: input.bookingType,
-        customer_id: input.customerId,
-        pet_id: input.petId,
-        secondary_pet_id: input.secondaryPetId ?? null,
-        room_id: input.roomId ?? null,
-        start_at: input.startAt,
-        end_at: input.endAt,
-        total_amount: input.totalAmount,
-        note: input.note ?? null,
-        created_by: input.actorUserId ?? null
-      })
-      .select("id")
-      .single();
-
-    if (!bookingError && booking) {
-      bookingId = booking.id;
-      break;
-    }
-
-    const isDuplicateBookingNo =
-      bookingError?.code === "23505" && bookingError.message.includes("bookings_booking_no_key");
-
-    if (!isDuplicateBookingNo) {
-      throw new Error(bookingError?.message ?? "Failed to create booking");
-    }
-  }
-
-  if (!bookingId) {
-    const bookingNo = buildFallbackBookingNo(new Date(Date.now() + MAX_BOOKING_NO_ATTEMPTS));
-    const { data: booking, error: bookingError } = await supabase
-      .from("bookings")
-      .insert({
-        booking_no: bookingNo,
-        booking_type: input.bookingType,
-        customer_id: input.customerId,
-        pet_id: input.petId,
-        secondary_pet_id: input.secondaryPetId ?? null,
-        room_id: input.roomId ?? null,
-        start_at: input.startAt,
-        end_at: input.endAt,
-        total_amount: input.totalAmount,
-        note: input.note ?? null,
-        created_by: input.actorUserId ?? null
-      })
-      .select("id")
-      .single();
-
-    if (bookingError || !booking) {
-      throw new Error(bookingError?.message ?? "Unable to create booking");
-    }
-
-    bookingId = booking.id;
-  }
-
-  if (input.items?.length) {
-    const { error: itemsError } = await supabase.from("booking_items").insert(
-      input.items.map((item) => ({
-        booking_id: bookingId,
-        service_id: item.serviceId,
-        qty: item.qty,
-        unit_price: item.unitPrice,
-        duration_minutes: item.durationMinutes,
-        note: item.note ?? null
-      }))
-    );
-
-    if (itemsError) {
-      throw new Error(itemsError.message);
-    }
-  }
-
-  if (!bookingId) {
-    throw new Error("Unable to create booking");
-  }
-
-  return bookingId;
+  return bookingId as string;
 }
 
 export async function updateBookingRecord(

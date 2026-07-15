@@ -13,6 +13,8 @@ type TransactionSummary = {
   income_by_payment_method: Record<PaymentMethod, number>;
 };
 
+export type FinanceReportSummary = TransactionSummary;
+
 function toSingle<T>(value: T | T[] | null | undefined) {
   return Array.isArray(value) ? value[0] : value;
 }
@@ -32,9 +34,13 @@ export async function getCashTransactions(day: string): Promise<CashTransaction[
   return getCashTransactionsByRange(day, day);
 }
 
-export async function getCashTransactionsByRange(startDate: string, endDate: string): Promise<CashTransaction[]> {
-  const supabase = await createClient();
-  const { data, error } = await supabase
+export async function getCashTransactionsByRange(
+  startDate: string,
+  endDate: string,
+  options?: { offset?: number; limit?: number; transactionType?: "income" | "expense"; timeoutMs?: number }
+): Promise<CashTransaction[]> {
+  const supabase = await createClient({ timeoutMs: options?.timeoutMs });
+  let query = supabase
     .from("cash_transactions")
     .select(
       `
@@ -58,6 +64,17 @@ export async function getCashTransactionsByRange(startDate: string, endDate: str
     .lte("transaction_date", endDate)
     .order("transaction_date", { ascending: false })
     .order("created_at", { ascending: false });
+
+  if (options?.transactionType) {
+    query = query.eq("transaction_type", options.transactionType);
+  }
+
+  if (options?.limit) {
+    const offset = Math.max(0, options.offset ?? 0);
+    query = query.range(offset, offset + options.limit - 1);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     throw new Error(error.message);
@@ -94,6 +111,43 @@ export async function getCashTransactionsByRange(startDate: string, endDate: str
       note: row.note ?? null
     } satisfies CashTransaction;
   });
+}
+
+export async function getFinanceReportSummary(
+  startDate: string,
+  endDate: string,
+  transactionType?: "income" | "expense"
+): Promise<FinanceReportSummary> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("get_finance_report_summary", {
+    p_start_date: startDate,
+    p_end_date: endDate,
+    p_transaction_type: transactionType ?? null
+  });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  const row = data?.[0];
+  const paymentMethods = (row?.income_by_payment_method ?? {}) as Partial<Record<PaymentMethod, number | string>>;
+
+  return {
+    income_total: Number(row?.income_total ?? 0),
+    expense_total: Number(row?.expense_total ?? 0),
+    net_total: Number(row?.net_total ?? 0),
+    service_income_total: Number(row?.service_income_total ?? 0),
+    hotel_income_total: Number(row?.hotel_income_total ?? 0),
+    other_income_total: Number(row?.other_income_total ?? 0),
+    deposit_total: Number(row?.deposit_total ?? 0),
+    income_by_payment_method: {
+      cash: Number(paymentMethods.cash ?? 0),
+      promptpay_qr: Number(paymentMethods.promptpay_qr ?? 0),
+      transfer: Number(paymentMethods.transfer ?? 0),
+      card: Number(paymentMethods.card ?? 0),
+      other: Number(paymentMethods.other ?? 0)
+    }
+  };
 }
 
 export async function getPendingDepositTotalByRange(startDate: string, endDate: string): Promise<number> {

@@ -2,8 +2,9 @@ import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 import type { CookieOptions } from "@supabase/ssr";
 import { getMissingSupabasePublicEnv, getSupabasePublicKey } from "@/lib/env";
+import { createTimedFetch } from "@/lib/supabase/timed-fetch";
 
-export async function createClient() {
+export async function createClient(options?: { timeoutMs?: number }) {
   const missing = getMissingSupabasePublicEnv();
 
   if (missing.length > 0) {
@@ -16,6 +17,9 @@ export async function createClient() {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     getSupabasePublicKey(),
     {
+      global: {
+        fetch: createTimedFetch(options?.timeoutMs)
+      },
       cookies: {
         getAll() {
           return cookieStore.getAll();

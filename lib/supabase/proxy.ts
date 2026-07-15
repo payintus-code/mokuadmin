@@ -2,6 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import type { CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { getSupabasePublicKey, hasSupabasePublicEnv } from "@/lib/env";
+import { createTimedFetch } from "@/lib/supabase/timed-fetch";
 
 export async function updateSession(request: NextRequest) {
   if (!hasSupabasePublicEnv()) {
@@ -15,6 +16,9 @@ export async function updateSession(request: NextRequest) {
   });
 
   const supabase = createServerClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, getSupabasePublicKey(), {
+    global: {
+      fetch: createTimedFetch()
+    },
     cookies: {
       getAll() {
         return request.cookies.getAll();

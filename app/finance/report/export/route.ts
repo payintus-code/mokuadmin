@@ -76,7 +76,7 @@ export async function GET(request: Request) {
     endDate = searchParams.get("end") ?? today;
   }
 
-  const transactions = await getCashTransactionsByRange(startDate, endDate);
+  const transactions = await getCashTransactionsByRange(startDate, endDate, { timeoutMs: 20_000 });
   const filteredTransactions =
     type === "all" ? transactions : transactions.filter((transaction) => transaction.transaction_type === type);
   const summary = summarizeTransactions(filteredTransactions);

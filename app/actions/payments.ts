@@ -37,7 +37,7 @@ export async function confirmPayment(formData: FormData) {
     throw new Error("ยอดรวมไม่ถูกต้อง");
   }
 
-  const paymentInfo = await prepareBookingPayment(bookingId, { useAdminClient: true });
+  const paymentInfo = await prepareBookingPayment(bookingId, { useAdminClient: true, includeQr: false });
   const nextTotalAmount = normalizeMoney(totalAmount);
   const paidAmount = normalizeMoney(paymentInfo.paidAmount);
 

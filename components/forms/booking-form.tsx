@@ -365,12 +365,17 @@ export function BookingForm({ initialCustomers, initialPets = [], rooms, service
 
   useEffect(() => {
     let active = true;
+    const normalizedSearch = customerSearch.trim();
+
+    if (normalizedSearch.length === 1) {
+      return;
+    }
 
     const timer = window.setTimeout(async () => {
       setCustomerLookupStatus("loading");
 
       try {
-        const nextCustomers = await searchCustomers(customerSearch, customerSearch.trim() ? 50 : 25);
+        const nextCustomers = await searchCustomers(customerSearch, normalizedSearch ? 50 : 25);
 
         if (!active) {
           return;
@@ -383,7 +388,7 @@ export function BookingForm({ initialCustomers, initialPets = [], rooms, service
           setCustomerLookupStatus("error");
         }
       }
-    }, customerSearch.trim() ? 250 : 0);
+    }, normalizedSearch ? 350 : 0);
 
     return () => {
       active = false;

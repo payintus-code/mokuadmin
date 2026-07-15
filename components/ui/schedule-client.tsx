@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { BookingQuickActions } from "@/components/ui/booking-quick-actions";
-import { ScheduleCalendar } from "@/components/ui/schedule-calendar";
+import { ScheduleCalendar, type ScheduleCalendarVariant } from "@/components/ui/schedule-calendar";
 import { ScheduleListItem } from "@/components/ui/schedule-list-item";
 import { formatDate } from "@/lib/format";
 import { scheduleWorkFilterLabels, type ScheduleWorkFilter } from "@/lib/frontdesk-work";
@@ -25,10 +25,11 @@ function buildScheduleHref(
     grooming?: string;
     hotel?: string;
     work?: string;
-  } = {}
+  } = {},
+  pathname = "/schedule"
 ) {
   return {
-    pathname: "/schedule",
+    pathname,
     query
   };
 }
@@ -65,20 +66,35 @@ function ScheduleDataLoading() {
   );
 }
 
-export function ScheduleClient({ queryString }: { queryString: string }) {
-  const [data, setData] = useState<ScheduleViewModel | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState("");
+export function ScheduleClient({
+  queryString,
+  initialData,
+  calendarVariant = "summary"
+}: {
+  queryString: string;
+  initialData?: ScheduleViewModel;
+  calendarVariant?: ScheduleCalendarVariant;
+}) {
+  const initialDataUrl = queryString ? `/schedule/data?${queryString}` : "/schedule/data";
+  const [response, setResponse] = useState<{ data: ScheduleViewModel | null; error: string; url: string }>({
+    data: initialData ?? null,
+    error: "",
+    url: initialData ? initialDataUrl : ""
+  });
   const dataUrl = useMemo(() => (queryString ? `/schedule/data?${queryString}` : "/schedule/data"), [queryString]);
+  const data = response.data;
+  const isLoading = response.url !== dataUrl;
+  const error = response.url === dataUrl ? response.error : "";
 
   useEffect(() => {
+    if (response.url === dataUrl) {
+      return;
+    }
+
     const controller = new AbortController();
 
-    setIsLoading(true);
-    setError("");
-
     fetch(dataUrl, {
-      signal: controller.signal,
+      signal: AbortSignal.any([controller.signal, AbortSignal.timeout(8_000)]),
       headers: {
         Accept: "application/json"
       }
@@ -91,23 +107,26 @@ export function ScheduleClient({ queryString }: { queryString: string }) {
         return (await response.json()) as ScheduleViewModel;
       })
       .then((nextData) => {
-        setData(nextData);
+        setResponse({
+          data: nextData,
+          error: "",
+          url: dataUrl
+        });
       })
       .catch((fetchError: unknown) => {
         if (controller.signal.aborted) {
           return;
         }
 
-        setError(fetchError instanceof Error ? fetchError.message : "Unable to load schedule");
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) {
-          setIsLoading(false);
-        }
+        setResponse((current) => ({
+          data: current.data,
+          error: fetchError instanceof Error ? fetchError.message : "Unable to load schedule",
+          url: dataUrl
+        }));
       });
 
     return () => controller.abort();
-  }, [dataUrl]);
+  }, [dataUrl, response.url]);
 
   if (!data && isLoading) {
     return <ScheduleDataLoading />;
@@ -136,6 +155,8 @@ export function ScheduleClient({ queryString }: { queryString: string }) {
   const activeTypeText = data.activeTypes.length
     ? data.activeTypes.map((type: BookingType) => bookingTypeLabel[type]).join(" / ")
     : "ไม่มีประเภทที่เลือก";
+  const isMonthCalendar = calendarVariant === "queue";
+  const currentSchedulePath = isMonthCalendar ? "/schedule/month" : "/schedule";
 
   return (
     <div className={isLoading ? "stack schedule-data-refreshing" : "stack"}>
@@ -148,7 +169,7 @@ export function ScheduleClient({ queryString }: { queryString: string }) {
             href={buildScheduleHref({
               month: data.prevMonth,
               ...sharedQuery
-            })}
+            }, currentSchedulePath)}
           >
             เดือนก่อน
           </Link>
@@ -158,7 +179,7 @@ export function ScheduleClient({ queryString }: { queryString: string }) {
             href={buildScheduleHref({
               month: data.nextMonth,
               ...sharedQuery
-            })}
+            }, currentSchedulePath)}
           >
             เดือนถัดไป
           </Link>
@@ -188,7 +209,7 @@ export function ScheduleClient({ queryString }: { queryString: string }) {
             <button className="btn btn-primary" type="submit">
               แสดงผล
             </button>
-            <Link className="btn btn-secondary" href="/schedule">
+            <Link className="btn btn-secondary" href={currentSchedulePath}>
               รีเซ็ตตัวกรอง
             </Link>
           </div>
@@ -196,16 +217,26 @@ export function ScheduleClient({ queryString }: { queryString: string }) {
 
         <div className="soft-note schedule-mobile-hidden">กำลังแสดง: {activeTypeText}</div>
 
-        <div className="schedule-filter-actions schedule-mobile-hidden">
+        <div className="schedule-filter-actions schedule-view-switch-actions">
           <Link
             className="btn btn-secondary"
             href={buildScheduleHref({
               month: data.currentMonth,
               date: data.currentDate,
               ...sharedQuery
-            })}
+            }, currentSchedulePath)}
           >
             วันนี้
+          </Link>
+          <Link
+            className="btn btn-secondary"
+            href={buildScheduleHref({
+              month: data.selectedMonthKey,
+              date: data.selectedDateKey,
+              ...sharedQuery
+            }, isMonthCalendar ? "/schedule" : "/schedule/month")}
+          >
+            {isMonthCalendar ? "รายการรายวัน" : "ปฏิทินเดือน"}
           </Link>
         </div>
       </section>
@@ -216,8 +247,11 @@ export function ScheduleClient({ queryString }: { queryString: string }) {
         hotelEnabled={data.hotelEnabled}
         useCustomFilters={data.useCustomFilters}
         workFilter={data.workFilter}
+        variant={calendarVariant}
       />
 
+      {!isMonthCalendar ? (
+        <>
       <section className="panel stack schedule-mobile-hidden">
         <div className="frontdesk-section-heading">
           <div>
@@ -368,6 +402,8 @@ export function ScheduleClient({ queryString }: { queryString: string }) {
           />
         )}
       </section>
+        </>
+      ) : null}
     </div>
   );
 }

@@ -316,6 +316,14 @@ textarea:focus-visible {
 }
 
 .dashboard-queue-section { min-width: 0; }
+.dashboard-queue-dialog { width: 100vw; max-width: none; height: 100dvh; max-height: none; margin: 0; padding: 0; border: 0; border-radius: 0; background: var(--card); color: var(--text); overflow: hidden; }
+.dashboard-queue-dialog::backdrop { background: rgba(48, 35, 27, .52); backdrop-filter: blur(4px); }
+.dashboard-queue-dialog-inner { display: grid; grid-template-rows: auto minmax(0, 1fr); width: 100%; height: 100%; }
+.dashboard-queue-dialog-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1rem max(1rem, 4vw); border-bottom: 1px solid var(--line); background: var(--surface); }
+.dashboard-queue-dialog-head-actions { display: flex; align-items: center; gap: .8rem; }
+.dashboard-queue-dialog-head .zoom-icon-button { flex: 0 0 auto; }
+.dashboard-queue-dialog-body { min-height: 0; overflow-y: auto; padding: max(1rem, 3vw); }
+.dashboard-queue-dialog-body .dashboard-queue-scroll { max-height: none; padding-right: 0; }
 .dashboard-brand { margin: 0; color: var(--brand-strong); font-size: 1.35rem; line-height: 1.2; letter-spacing: -0.02em; }
 .dashboard-queue-scroll { display: grid; gap: .6rem; max-height: 34rem; overflow-y: auto; padding-right: .25rem; }
 .dashboard-queue-row { display: grid; gap: .65rem; padding: .8rem .9rem; border: 1px solid var(--line); border-radius: .9rem; background: var(--surface); }

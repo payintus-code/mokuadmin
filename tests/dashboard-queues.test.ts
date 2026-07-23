@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { partitionDashboardQueues } from "../lib/dashboard.ts";
+import { canReceiveBookingPayment, partitionDashboardQueues } from "../lib/dashboard.ts";
 import type { DailyScheduleItem } from "../types/database.ts";
 
 const item = (status: DailyScheduleItem["status"], id: string): DailyScheduleItem => ({
@@ -31,4 +31,16 @@ test("keeps all statuses in todayAll and excludes cancelled from pending", () =>
 test("passes every unpaid booking through unchanged", () => {
     const unpaid = [item("done", "old"), item("pending", "future")];
     assert.deepEqual(partitionDashboardQueues([], unpaid).unpaid, unpaid);
+});
+
+test("allows receiving payment for every non-cancelled unpaid status", () => {
+    for (const status of ["pending", "confirmed", "in_progress", "done"] as const) {
+        assert.equal(canReceiveBookingPayment({ status, payment_status: "pending" }), true);
+    }
+});
+
+test("does not allow receiving payment for paid or cancelled bookings", () => {
+    assert.equal(canReceiveBookingPayment({ status: "pending", payment_status: "paid" }), false);
+    assert.equal(canReceiveBookingPayment({ status: "cancelled", payment_status: "pending" }), false);
+    assert.equal(canReceiveBookingPayment({ status: "cancelled", payment_status: "paid" }), false);
 });

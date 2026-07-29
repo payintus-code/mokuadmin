@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { deleteBooking } from "@/app/actions/bookings";
+import { BookingEditForm } from "@/components/forms/booking-edit-form";
 import { DeleteButton } from "@/components/forms/delete-button";
 import { PageHeader } from "@/components/ui/page-header";
 import { PaymentStatusBadge } from "@/components/ui/payment-status-badge";
@@ -17,9 +18,11 @@ const bookingTypeLabel = {
 export const dynamic = "force-dynamic";
 
 export default async function BookingDetailPage({
-  params
+  params,
+  searchParams
 }: {
   params: Promise<{ bookingId: string }>;
+  searchParams?: Promise<{ edit?: string }>;
 }) {
   if (!hasSupabaseEnv()) {
     return (
@@ -32,6 +35,7 @@ export default async function BookingDetailPage({
 
   const currentUser = await requireAppUser();
   const { bookingId } = await params;
+  const query = await searchParams;
   const booking = await getBookingDetail(bookingId);
   const roomOrService = booking.room_name || booking.services_summary || "-";
   const paidAmount = Number(booking.payment?.amount ?? 0);
@@ -110,6 +114,19 @@ export default async function BookingDetailPage({
           <div className="muted">หมายเหตุ</div>
           <div>{booking.note?.trim() ? booking.note : "-"}</div>
         </div>
+
+        <BookingEditForm
+          bookingId={booking.booking_id}
+          bookingType={booking.booking_type}
+          startAt={booking.start_at}
+          endAt={booking.end_at}
+          totalAmount={booking.total_amount}
+          paidAmount={paidAmount}
+          paymentStatus={booking.payment_status}
+          receiptNo={booking.payment?.receipt_no ?? null}
+          note={booking.note}
+          initialOpen={query?.edit === "1"}
+        />
 
         <div className={currentUser.role === "admin" ? "grid-2" : undefined}>
           <Link className="btn btn-secondary" href={`/payments/${booking.booking_id}`}>

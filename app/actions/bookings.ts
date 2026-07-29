@@ -1,5 +1,6 @@
 "use server";
 
+import { redirect } from "next/navigation";
 import {
   cancelBookingRecord,
   checkGroomingDraftAvailability as checkGroomingDraftAvailabilityQuery,
@@ -23,7 +24,11 @@ function toIsoDateTime(value: string, fieldName: string) {
   const isoValue = localDateTimeMatch ? `${localDateTimeMatch[1]}T${localDateTimeMatch[2]}:00.000Z` : normalized;
   const parsed = new Date(isoValue);
 
-  if (Number.isNaN(parsed.getTime())) {
+  if (
+    Number.isNaN(parsed.getTime()) ||
+    (localDateTimeMatch &&
+      parsed.toISOString().slice(0, 16) !== `${localDateTimeMatch[1]}T${localDateTimeMatch[2]}`)
+  ) {
     throw new Error(`${fieldName} is invalid`);
   }
 
@@ -364,16 +369,33 @@ export async function updateBooking(input: {
 }) {
   await requireAppUser();
 
-  if (input.startAt && input.endAt) {
-    assertStartBeforeEnd(input.startAt, input.endAt);
+  const startAt = input.startAt ? toIsoDateTime(input.startAt, "Start time") : undefined;
+  const endAt = input.endAt ? toIsoDateTime(input.endAt, "End time") : undefined;
+  if (
+    input.totalAmount !== undefined &&
+    (!Number.isFinite(input.totalAmount) || !Number.isInteger(input.totalAmount))
+  ) {
+    throw new Error("ยอดรวมต้องเป็นจำนวนเงินบาทเต็มบาท");
+  }
+  const totalAmount =
+    input.totalAmount === undefined
+      ? undefined
+      : normalizeWholeBahtAmount(input.totalAmount, "Total amount");
+
+  if ((startAt && !endAt) || (!startAt && endAt)) {
+    throw new Error("กรุณาระบุวันเวลาเริ่มและสิ้นสุดให้ครบ");
+  }
+
+  if (startAt && endAt) {
+    assertStartBeforeEndStrict(startAt, endAt);
   }
 
   await updateBookingRecord(input.bookingId, {
     status: input.status,
-    startAt: input.startAt,
-    endAt: input.endAt,
+    startAt,
+    endAt,
     roomId: input.roomId,
-    totalAmount: input.totalAmount,
+    totalAmount,
     note: input.note
   });
   revalidateBookingSurfaces(input.bookingId);
@@ -452,6 +474,7 @@ export async function deleteBooking(bookingId: string) {
   await deleteBookingRecord(bookingId);
   revalidateBookingCreationSurfaces();
   revalidateFinanceSurfaces();
+  redirect(`/schedule?toast=save&toastMessage=${encodeURIComponent("ลบคิวเรียบร้อยแล้ว")}`);
 }
 
 export async function getDailySchedule(day: string) {
@@ -476,6 +499,7 @@ export async function checkGroomingAvailability(input: {
   startAt: string;
   endAt: string;
   petIds: string[];
+  bookingId?: string;
 }) {
   await requireAppUser();
 
@@ -484,5 +508,11 @@ export async function checkGroomingAvailability(input: {
   assertStartBeforeEnd(startAtIso, endAtIso);
 
   const supabase = createAdminClient();
-  return checkGroomingDraftAvailabilityQuery(supabase, input.petIds, startAtIso, endAtIso);
+  return checkGroomingDraftAvailabilityQuery(
+    supabase,
+    input.petIds,
+    startAtIso,
+    endAtIso,
+    input.bookingId
+  );
 }

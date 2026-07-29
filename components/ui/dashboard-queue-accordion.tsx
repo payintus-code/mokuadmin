@@ -17,7 +17,45 @@ const bookingTypeLabel: Record<DailyScheduleItem["booking_type"], string> = { gr
 
 function QueueRow({ item, unpaid }: { item: DailyScheduleItem; unpaid: boolean }) {
   const showPaymentAction = canReceiveBookingPayment(item);
-  return <article className="dashboard-queue-row"><div className="dashboard-queue-row-main"><div className="dashboard-queue-row-time">{unpaid ? <span>{formatDate(item.start_at)}</span> : null}<strong>{formatTime(item.start_at)}–{formatTime(item.end_at)}</strong></div><div className="dashboard-queue-row-copy"><strong>{item.booking_no}</strong><span>{item.customer_name} · {item.pet_name}</span><small>{bookingTypeLabel[item.booking_type]}{item.services_summary ? ` · ${item.services_summary}` : ""}{item.room_name ? ` · ${item.room_name}` : ""}</small></div><div className="dashboard-queue-row-status"><StatusBadge status={item.status} /><PaymentStatusBadge status={item.payment_status} /><strong>{formatBaht(item.total_amount)}</strong></div></div>{showPaymentAction ? <div className="dashboard-queue-row-actions"><Link className="btn btn-primary btn-small" href={`/payments/${item.booking_id}`}>รับเงิน</Link></div> : null}</article>;
+  return (
+    <article className="dashboard-queue-row">
+      <div className="dashboard-queue-row-main">
+        <div className="dashboard-queue-row-time">
+          {unpaid ? <span>{formatDate(item.start_at)}</span> : null}
+          <strong>{formatTime(item.start_at)}–{formatTime(item.end_at)}</strong>
+        </div>
+        <div className="dashboard-queue-row-copy">
+          <strong>{item.booking_no}</strong>
+          <span>{item.customer_name} · {item.pet_name}</span>
+          <small>
+            {bookingTypeLabel[item.booking_type]}
+            {item.services_summary ? ` · ${item.services_summary}` : ""}
+            {item.room_name ? ` · ${item.room_name}` : ""}
+          </small>
+        </div>
+        <div className="dashboard-queue-row-status">
+          <StatusBadge status={item.status} />
+          <PaymentStatusBadge status={item.payment_status} />
+          <strong>{formatBaht(item.total_amount)}</strong>
+        </div>
+      </div>
+
+      {showPaymentAction || unpaid ? (
+        <div className="dashboard-queue-row-actions">
+          {unpaid ? (
+            <Link className="btn btn-secondary btn-small" href={`/bookings/${item.booking_id}?edit=1`}>
+              แก้ไขคิว
+            </Link>
+          ) : null}
+          {showPaymentAction ? (
+            <Link className="btn btn-primary btn-small" href={`/payments/${item.booking_id}`}>
+              รับเงิน
+            </Link>
+          ) : null}
+        </div>
+      ) : null}
+    </article>
+  );
 }
 
 function QueueDialogContent({

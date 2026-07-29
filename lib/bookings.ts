@@ -3,6 +3,7 @@ import { resolvePaymentStatus } from "@/lib/payment-status";
 import { createClient } from "@/lib/supabase/server";
 import { evaluateGroomingDraftAvailability, type GroomingOverlapRow } from "@/lib/grooming-draft";
 import { formatCreateBookingError } from "@/lib/booking-errors";
+import { validateBookingAmountEdit } from "@/lib/booking-edit";
 import type {
   BookingDetailViewModel,
   BookingPayment,
@@ -446,9 +447,10 @@ export async function checkGroomingDraftAvailability(
   supabase: ReturnType<typeof createAdminClient>,
   petIds: string[],
   startAt: string,
-  endAt: string
+  endAt: string,
+  excludeBookingId?: string
 ) {
-  const { data, error } = await supabase
+  let query = supabase
     .from("bookings")
     .select(
       `
@@ -462,8 +464,13 @@ export async function checkGroomingDraftAvailability(
     .eq("booking_type", "grooming")
     .in("status", ["pending", "confirmed", "in_progress"])
     .lt("start_at", endAt)
-    .gt("end_at", startAt)
-    .order("start_at", { ascending: true });
+    .gt("end_at", startAt);
+
+  if (excludeBookingId) {
+    query = query.neq("id", excludeBookingId);
+  }
+
+  const { data, error } = await query.order("start_at", { ascending: true });
 
   if (error) {
     throw new Error(error.message);
@@ -569,23 +576,68 @@ export async function updateBookingRecord(
   input: Partial<CreateBookingInput> & { status?: BookingStatus }
 ) {
   const supabase = createAdminClient();
-
-  if (input.startAt && input.endAt) {
-    assertStartBeforeEnd(input.startAt, input.endAt);
-  }
-
-  if (input.totalAmount !== undefined) {
-    const [{ data: existingPayment }, { data: existingBooking, error: bookingError }] = await Promise.all([
-      supabase.from("booking_payments").select("status").eq("booking_id", bookingId).maybeSingle(),
-      supabase.from("bookings").select("total_amount").eq("id", bookingId).single()
+  const [{ data: existingBooking, error: bookingError }, { data: existingPayment, error: paymentError }] =
+    await Promise.all([
+      supabase
+        .from("bookings")
+        .select("booking_type, status, pet_id, secondary_pet_id, room_id, start_at, end_at, total_amount")
+        .eq("id", bookingId)
+        .single(),
+      supabase
+        .from("booking_payments")
+        .select("amount, status, receipt_no")
+        .eq("booking_id", bookingId)
+        .maybeSingle()
     ]);
 
-    if (bookingError || !existingBooking) {
-      throw new Error(bookingError?.message ?? "Booking not found");
-    }
+  if (bookingError || !existingBooking) {
+    throw new Error(bookingError?.message ?? "Booking not found");
+  }
 
-    if (existingPayment?.status === "paid" && Number(existingBooking.total_amount) !== input.totalAmount) {
-      throw new Error("ไม่สามารถแก้ยอดได้หลังรับชำระแล้ว");
+  if (paymentError) {
+    throw new Error(paymentError.message);
+  }
+
+  const effectiveStartAt = input.startAt ?? existingBooking.start_at;
+  const effectiveEndAt = input.endAt ?? existingBooking.end_at;
+
+  assertStartBeforeEnd(effectiveStartAt, effectiveEndAt);
+
+  if (input.totalAmount !== undefined) {
+    const amountValidation = validateBookingAmountEdit({
+      currentTotalAmount: Number(existingBooking.total_amount),
+      nextTotalAmount: input.totalAmount,
+      paidAmount: Number(existingPayment?.amount ?? 0),
+      paymentStatus: existingPayment?.status as BookingPayment["status"] | undefined,
+      receiptNo: existingPayment?.receipt_no
+    });
+
+    if (!amountValidation.ok) {
+      throw new Error(amountValidation.message);
+    }
+  }
+
+  const effectiveStatus = input.status ?? (existingBooking.status as BookingStatus);
+  const timeChanged =
+    effectiveStartAt !== existingBooking.start_at || effectiveEndAt !== existingBooking.end_at;
+
+  if (
+    timeChanged &&
+    existingBooking.booking_type === "grooming" &&
+    ["pending", "confirmed", "in_progress"].includes(effectiveStatus)
+  ) {
+    const availability = await checkGroomingDraftAvailability(
+      supabase,
+      [existingBooking.pet_id, existingBooking.secondary_pet_id].filter(
+        (petId): petId is string => Boolean(petId)
+      ),
+      effectiveStartAt,
+      effectiveEndAt,
+      bookingId
+    );
+
+    if (!availability.ok) {
+      throw new Error(availability.message);
     }
   }
 
@@ -601,6 +653,10 @@ export async function updateBookingRecord(
   const { error } = await supabase.from("bookings").update(patch).eq("id", bookingId);
 
   if (error) {
+    if (error.code === "23P01" && existingBooking.booking_type === "hotel") {
+      throw new Error("ห้องเดิมไม่ว่างในช่วงวันเวลาที่เลือก กรุณาเลือกช่วงเวลาอื่น");
+    }
+
     throw new Error(error.message);
   }
 }

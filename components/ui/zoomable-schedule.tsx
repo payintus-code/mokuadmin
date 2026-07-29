@@ -5,10 +5,9 @@ import Link from "next/link";
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
 import { PaymentStatusBadge } from "@/components/ui/payment-status-badge";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { dateKey, eventDateKey, zoomScheduleLevel, type ScheduleZoomLevel, type TimedEventLayout } from "@/lib/zoomable-schedule-core";
+import { dateKey, zoomScheduleLevel, type ScheduleZoomLevel, type TimedEventLayout } from "@/lib/zoomable-schedule-core";
 import { formatBaht, formatDate, formatTime } from "@/lib/format";
 import type { ZoomableScheduleViewModel } from "@/lib/zoomable-schedule";
-import type { DailyScheduleItem } from "@/types/database";
 
 const weekdays = ["อา", "จ", "อ", "พ", "พฤ", "ศ", "ส"];
 const hours = Array.from({ length: 24 }, (_, index) => index);
@@ -21,18 +20,40 @@ function eventStyle(event: TimedEventLayout): CSSProperties {
   return { top: event.startMinute * minuteHeight + 2, height: Math.max(44, (event.endMinute - event.startMinute) * minuteHeight - 4), left: `calc(${event.column * width}% + 3px)`, width: `calc(${width}% - 6px)` };
 }
 
+function monthCellAriaLabel(cell: ZoomableScheduleViewModel["monthCells"][number]) {
+  const hotelSummary = [
+    cell.hotelCheckInCount ? `Check in ${cell.hotelCheckInCount}` : "",
+    cell.hotelCheckOutCount ? `Check out ${cell.hotelCheckOutCount}` : ""
+  ].filter(Boolean).join(" ");
+  return `${formatDate(cell.date)} ${cell.totalCount} คิว${hotelSummary ? ` ${hotelSummary}` : ""}`;
+}
+
 function MonthView({ data, onOpenDate }: { data: ZoomableScheduleViewModel; onOpenDate: (date: string) => void }) {
-  return <section className="zoom-month-card" aria-label={data.title}><div className="zoom-month-weekdays">{weekdays.map((day) => <span key={day}>{day}</span>)}</div><div className="zoom-month-grid">{data.monthCells.map((cell) => <button key={cell.date} type="button" data-schedule-date={cell.date} className={`zoom-month-day${cell.inCurrentMonth ? "" : " is-outside"}${cell.isToday ? " is-today" : ""}`} onClick={() => onOpenDate(cell.date)} aria-label={`${formatDate(cell.date)} ${cell.totalCount} คิว`}><span className="zoom-month-number">{Number(cell.date.slice(-2))}</span><span className="zoom-month-count">{cell.totalCount || ""}</span><span className="zoom-month-dots">{cell.groomingCount ? <i className="is-grooming" /> : null}{cell.hotelCount ? <i className="is-hotel" /> : null}</span>{cell.totalCount ? <small>{cell.totalCount} คิว</small> : null}</button>)}</div></section>;
+  return <section className="zoom-month-card" aria-label={data.title}><div className="zoom-month-weekdays">{weekdays.map((day) => <span key={day}>{day}</span>)}</div><div className="zoom-month-grid">{data.monthCells.map((cell) => <button key={cell.date} type="button" data-schedule-date={cell.date} className={`zoom-month-day${cell.inCurrentMonth ? "" : " is-outside"}${cell.isToday ? " is-today" : ""}`} onClick={() => onOpenDate(cell.date)} aria-label={monthCellAriaLabel(cell)}><span className="zoom-month-number">{Number(cell.date.slice(-2))}</span><span className="zoom-month-count">{cell.totalCount || ""}</span><span className="zoom-month-dots">{cell.groomingCount ? <i className="is-grooming" /> : null}{cell.hotelCount ? <i className="is-hotel" /> : null}</span>{cell.totalCount ? <small>{cell.totalCount} คิว</small> : null}</button>)}</div></section>;
 }
 
-function HotelLane({ data, onSelect }: { data: ZoomableScheduleViewModel; onSelect: (event: DailyScheduleItem) => void }) {
-  if (!data.hotelEvents.length) return null;
-  const first = data.dayKeys[0];
-  const last = data.dayKeys.at(-1) ?? first;
-  return <section className="zoom-hotel-lane"><div className="zoom-time-gutter-label">พัก</div><div className="zoom-hotel-grid" style={{ gridTemplateColumns: `repeat(${data.dayKeys.length}, minmax(0, 1fr))` }}>{data.hotelEvents.map((event) => { const start = eventDateKey(event.start_at) < first ? first : eventDateKey(event.start_at); const endRaw = eventDateKey(new Date(new Date(event.end_at).getTime() - 1).toISOString()); const end = endRaw > last ? last : endRaw; const startColumn = Math.max(1, data.dayKeys.indexOf(start) + 1); const endColumn = Math.max(startColumn + 1, data.dayKeys.indexOf(end) + 2); return <button key={event.booking_id} type="button" className="zoom-hotel-event" style={{ gridColumn: `${startColumn} / ${endColumn}` }} onClick={() => onSelect(event)}><strong>{event.pet_name}</strong><span>{event.room_name || "โรงแรม"}</span></button>; })}</div></section>;
+function timedEventDescription(event: TimedEventLayout, view: ScheduleZoomLevel) {
+  if (event.eventKind !== "grooming") {
+    return event.room_name || "โรงแรม";
+  }
+
+  const service = event.services_summary || "อาบน้ำตัดขน";
+  return view === "day" ? `${event.customer_name} · ${service}` : service;
 }
 
-function TimelineView({ data, onSelect, onOpenDay }: { data: ZoomableScheduleViewModel; onSelect: (event: DailyScheduleItem) => void; onOpenDay: (date: string) => void }) {
+function hotelEventTag(event: TimedEventLayout) {
+  if (event.eventKind === "hotel-check-in") {
+    return <span className="zoom-timed-event-tag is-check-in">Check in</span>;
+  }
+
+  if (event.eventKind === "hotel-check-out") {
+    return <span className="zoom-timed-event-tag is-check-out">Check out</span>;
+  }
+
+  return null;
+}
+
+function TimelineView({ data, onSelect, onOpenDay }: { data: ZoomableScheduleViewModel; onSelect: (event: TimedEventLayout) => void; onOpenDay: (date: string) => void }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const now = new Date();
   const nowKey = dateKey(now);
@@ -42,14 +63,95 @@ function TimelineView({ data, onSelect, onOpenDay }: { data: ZoomableScheduleVie
     const target = Number.isFinite(first) ? first : data.dayKeys.includes(nowKey) ? nowMinute : 8 * 60;
     scrollRef.current?.scrollTo({ top: Math.max(0, target * minuteHeight - 120), behavior: "smooth" });
   }, [data.anchorDate, data.timedEvents, data.dayKeys, nowKey, nowMinute]);
-  return <section className={`zoom-timeline-card is-${data.view}`}><div className="zoom-day-header"><span /><div className="zoom-day-header-grid" style={{ gridTemplateColumns: `repeat(${data.dayKeys.length}, minmax(0, 1fr))` }}>{data.dayKeys.map((day) => <button key={day} data-schedule-date={day} type="button" className={day === data.today ? "is-today" : ""} onClick={() => data.view === "week" && onOpenDay(day)}><span>{weekdays[new Date(`${day}T00:00:00Z`).getUTCDay()]}</span><strong>{Number(day.slice(-2))}</strong></button>)}</div></div><HotelLane data={data} onSelect={onSelect} /><div className="zoom-timeline-scroll" ref={scrollRef}><div className="zoom-timeline" style={{ height: timelineHeight }}><div className="zoom-hour-labels">{hours.map((hour) => <span key={hour} style={{ top: hour * 60 * minuteHeight }}>{String(hour).padStart(2, "0")}.00</span>)}</div><div className="zoom-time-days" style={{ gridTemplateColumns: `repeat(${data.dayKeys.length}, minmax(${data.view === "week" ? 110 : 220}px, 1fr))` }}>{data.dayKeys.map((day) => <div key={day} className="zoom-time-day" data-schedule-date={day}>{hours.map((hour) => <i key={hour} style={{ top: hour * 60 * minuteHeight }} />)}{day === nowKey ? <span className="zoom-now-line" style={{ top: nowMinute * minuteHeight }} /> : null}{data.timedEvents.filter((event) => event.dayKey === day).map((event) => <button key={event.booking_id} type="button" className="zoom-timed-event" style={eventStyle(event)} onClick={() => onSelect(event)}><time>{formatTime(event.start_at)}</time><strong>{event.pet_name}</strong><span>{data.view === "day" ? `${event.customer_name} · ${event.services_summary || "อาบน้ำตัดขน"}` : event.services_summary || "อาบน้ำตัดขน"}</span></button>)}</div>)}</div></div></div></section>;
+
+  return (
+    <section className={`zoom-timeline-card is-${data.view}`}>
+      <div className="zoom-day-header">
+        <span />
+        <div className="zoom-day-header-grid" style={{ gridTemplateColumns: `repeat(${data.dayKeys.length}, minmax(0, 1fr))` }}>
+          {data.dayKeys.map((day) => (
+            <button key={day} data-schedule-date={day} type="button" className={day === data.today ? "is-today" : ""} onClick={() => data.view === "week" && onOpenDay(day)}>
+              <span>{weekdays[new Date(`${day}T00:00:00Z`).getUTCDay()]}</span>
+              <strong>{Number(day.slice(-2))}</strong>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="zoom-timeline-scroll" ref={scrollRef}>
+        <div className="zoom-timeline" style={{ height: timelineHeight }}>
+          <div className="zoom-hour-labels">
+            {hours.map((hour) => <span key={hour} style={{ top: hour * 60 * minuteHeight }}>{String(hour).padStart(2, "0")}.00</span>)}
+          </div>
+          <div className="zoom-time-days" style={{ gridTemplateColumns: `repeat(${data.dayKeys.length}, minmax(${data.view === "week" ? 110 : 220}px, 1fr))` }}>
+            {data.dayKeys.map((day) => (
+              <div key={day} className="zoom-time-day" data-schedule-date={day}>
+                {hours.map((hour) => <i key={hour} style={{ top: hour * 60 * minuteHeight }} />)}
+                {day === nowKey ? <span className="zoom-now-line" style={{ top: nowMinute * minuteHeight }} /> : null}
+                {data.timedEvents.filter((event) => event.dayKey === day).map((event) => (
+                  <button
+                    key={`${event.booking_id}:${event.eventKind}`}
+                    type="button"
+                    className={`zoom-timed-event${event.eventKind === "grooming" ? "" : " is-hotel"}`}
+                    style={eventStyle(event)}
+                    onClick={() => onSelect(event)}
+                  >
+                    <span className="zoom-timed-event-meta">
+                      <time>{formatTime(event.eventAt)}</time>
+                      {hotelEventTag(event)}
+                    </span>
+                    <strong>{event.pet_name}</strong>
+                    <span>{timedEventDescription(event, data.view)}</span>
+                  </button>
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
 }
 
-function EventDialog({ event, onClose }: { event: DailyScheduleItem | null; onClose: () => void }) {
+function EventDialog({ event, onClose }: { event: TimedEventLayout | null; onClose: () => void }) {
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => { const dialog = ref.current; if (event && dialog && !dialog.open) dialog.showModal(); if (!event && dialog?.open) dialog.close(); }, [event]);
   if (!event) return null;
-  return <dialog ref={ref} className="zoom-event-dialog" onClose={onClose}><div className="zoom-event-sheet"><div className="zoom-event-sheet-head"><div><span className="section-kicker">{event.booking_type === "hotel" ? "โรงแรม" : "อาบน้ำตัดขน"}</span><h2>{event.pet_name}</h2></div><button className="zoom-icon-button" type="button" onClick={() => ref.current?.close()} aria-label="ปิด"><X size={20} /></button></div><div className="zoom-event-status"><StatusBadge status={event.status} /><PaymentStatusBadge status={event.payment_status} /></div><dl><div><dt>คิว</dt><dd>{event.booking_no}</dd></div><div><dt>เวลา</dt><dd>{formatDate(event.start_at)} · {formatTime(event.start_at)}–{formatTime(event.end_at)}</dd></div><div><dt>ลูกค้า</dt><dd>{event.customer_name}</dd></div><div><dt>บริการ / ห้อง</dt><dd>{event.services_summary || event.room_name || "-"}</dd></div><div><dt>ยอดรวม</dt><dd>{formatBaht(event.total_amount)}</dd></div></dl><div className="zoom-event-actions"><Link className="btn btn-secondary" href={`/bookings/${event.booking_id}`}>เปิดรายละเอียด</Link>{event.payment_status !== "paid" && event.status !== "cancelled" ? <Link className="btn btn-primary" href={`/payments/${event.booking_id}`}>รับเงิน</Link> : null}{event.customer_phone ? <a className="btn btn-secondary" href={`tel:${event.customer_phone}`}>โทรหาลูกค้า</a> : null}</div></div></dialog>;
+  const isHotel = event.booking_type === "hotel";
+
+  return (
+    <dialog ref={ref} className="zoom-event-dialog" onClose={onClose}>
+      <div className="zoom-event-sheet">
+        <div className="zoom-event-sheet-head">
+          <div>
+            <span className="section-kicker">{isHotel ? "โรงแรม" : "อาบน้ำตัดขน"}</span>
+            <h2>{event.pet_name}</h2>
+          </div>
+          <button className="zoom-icon-button" type="button" onClick={() => ref.current?.close()} aria-label="ปิด"><X size={20} /></button>
+        </div>
+        <div className="zoom-event-status"><StatusBadge status={event.status} /><PaymentStatusBadge status={event.payment_status} /></div>
+        <dl>
+          <div><dt>คิว</dt><dd>{event.booking_no}</dd></div>
+          {isHotel ? (
+            <>
+              <div><dt>Check in</dt><dd>{formatDate(event.start_at)} · {formatTime(event.start_at)}</dd></div>
+              <div><dt>Check out</dt><dd>{formatDate(event.end_at)} · {formatTime(event.end_at)}</dd></div>
+            </>
+          ) : (
+            <div><dt>เวลา</dt><dd>{formatDate(event.start_at)} · {formatTime(event.start_at)}–{formatTime(event.end_at)}</dd></div>
+          )}
+          <div><dt>ลูกค้า</dt><dd>{event.customer_name}</dd></div>
+          <div><dt>บริการ / ห้อง</dt><dd>{event.services_summary || event.room_name || "-"}</dd></div>
+          <div><dt>ยอดรวม</dt><dd>{formatBaht(event.total_amount)}</dd></div>
+        </dl>
+        <div className="zoom-event-actions">
+          <Link className="btn btn-secondary" href={`/bookings/${event.booking_id}`}>เปิดรายละเอียด</Link>
+          {event.payment_status !== "paid" && event.status !== "cancelled" ? <Link className="btn btn-primary" href={`/payments/${event.booking_id}`}>รับเงิน</Link> : null}
+          {event.customer_phone ? <a className="btn btn-secondary" href={`tel:${event.customer_phone}`}>โทรหาลูกค้า</a> : null}
+        </div>
+      </div>
+    </dialog>
+  );
 }
 
 export function ZoomableSchedule({ initialData }: { initialData: ZoomableScheduleViewModel }) {
@@ -57,7 +159,7 @@ export function ZoomableSchedule({ initialData }: { initialData: ZoomableSchedul
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [retryTarget, setRetryTarget] = useState<{ view: ScheduleZoomLevel; date: string } | null>(null);
-  const [selected, setSelected] = useState<DailyScheduleItem | null>(null);
+  const [selected, setSelected] = useState<TimedEventLayout | null>(null);
   const cache = useRef(new Map([[`${initialData.view}:${initialData.anchorDate}`, initialData]]));
   const controller = useRef<AbortController | null>(null);
   const pointers = useRef(new Map<number, { x: number; y: number }>());

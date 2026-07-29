@@ -256,7 +256,7 @@ export async function getScheduleInRange(startAt: string, endAtExclusive: string
       `
     )
     .lt("start_at", endAtExclusive)
-    .gt("end_at", startAt)
+    .gte("end_at", startAt)
     .order("start_at", { ascending: true })
     .order("created_at", { ascending: true });
 
@@ -287,7 +287,7 @@ export async function getScheduleMonthSummaryInRange(startAt: string, endAtExclu
       `
     )
     .lt("start_at", endAtExclusive)
-    .gt("end_at", startAt);
+    .gte("end_at", startAt);
 
   if (error) {
     throw new Error(error.message);

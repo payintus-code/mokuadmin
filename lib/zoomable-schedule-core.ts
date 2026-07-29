@@ -12,9 +12,15 @@ export type ZoomScheduleMonthCell = {
   totalCount: number;
   groomingCount: number;
   hotelCount: number;
+  hotelCheckInCount: number;
+  hotelCheckOutCount: number;
 };
 
+export type ScheduleTimedEventKind = "grooming" | "hotel-check-in" | "hotel-check-out";
+
 export type TimedEventLayout = DailyScheduleItem & {
+  eventKind: ScheduleTimedEventKind;
+  eventAt: string;
   dayKey: string;
   startMinute: number;
   endMinute: number;
@@ -80,25 +86,54 @@ export function getScheduleRange(level: ScheduleZoomLevel, anchor: Date) {
 
 export function buildMonthCells(items: ScheduleMonthSummaryItem[], anchor: Date, now = new Date()): ZoomScheduleMonthCell[] {
   const range = getScheduleRange("month", anchor);
-  const counts = new Map<string, { totalCount: number; groomingCount: number; hotelCount: number }>();
+  const emptyCounts = () => ({
+    totalCount: 0,
+    groomingCount: 0,
+    hotelCount: 0,
+    hotelCheckInCount: 0,
+    hotelCheckOutCount: 0
+  });
+  const counts = new Map<string, ReturnType<typeof emptyCounts>>();
   const startKey = dateKey(range.start);
   const endKey = dateKey(addDays(range.endExclusive, -1));
   for (const item of items) {
     const itemStart = eventDateKey(item.start_at);
+
+    if (item.booking_type === "hotel") {
+      const endpoints = [
+        { key: itemStart, kind: "check-in" as const },
+        { key: eventDateKey(item.end_at), kind: "check-out" as const }
+      ];
+
+      for (const endpoint of endpoints) {
+        if (!endpoint.key || endpoint.key < startKey || endpoint.key > endKey) {
+          continue;
+        }
+
+        const current = counts.get(endpoint.key) ?? emptyCounts();
+        current.totalCount += 1;
+        current.hotelCount += 1;
+        if (endpoint.kind === "check-in") current.hotelCheckInCount += 1;
+        else current.hotelCheckOutCount += 1;
+        counts.set(endpoint.key, current);
+      }
+
+      continue;
+    }
+
     const adjustedEnd = new Date(new Date(item.end_at).getTime() - 1);
     const itemEnd = eventDateKey(adjustedEnd.toISOString());
     for (let key = itemStart < startKey ? startKey : itemStart; key && key <= (itemEnd > endKey ? endKey : itemEnd); key = dateKey(addDays(parseISO(key), 1))) {
-      const current = counts.get(key) ?? { totalCount: 0, groomingCount: 0, hotelCount: 0 };
+      const current = counts.get(key) ?? emptyCounts();
       current.totalCount += 1;
-      if (item.booking_type === "grooming") current.groomingCount += 1;
-      else current.hotelCount += 1;
+      current.groomingCount += 1;
       counts.set(key, current);
     }
   }
   const cells: ZoomScheduleMonthCell[] = [];
   for (let cursor = range.start; cursor < range.endExclusive; cursor = addDays(cursor, 1)) {
     const key = dateKey(cursor);
-    cells.push({ date: key, inCurrentMonth: isSameMonth(cursor, anchor), isToday: key === dateKey(now), ...(counts.get(key) ?? { totalCount: 0, groomingCount: 0, hotelCount: 0 }) });
+    cells.push({ date: key, inCurrentMonth: isSameMonth(cursor, anchor), isToday: key === dateKey(now), ...(counts.get(key) ?? emptyCounts()) });
   }
   return cells;
 }
@@ -108,15 +143,34 @@ function minuteOfDay(value: string) {
   return date.getUTCHours() * 60 + date.getUTCMinutes();
 }
 
-export function layoutTimedEvents(items: DailyScheduleItem[]): TimedEventLayout[] {
-  const byDay = new Map<string, DailyScheduleItem[]>();
-  for (const item of items.filter((entry) => entry.booking_type === "grooming")) {
-    const key = eventDateKey(item.start_at);
-    byDay.set(key, [...(byDay.get(key) ?? []), item]);
+export function layoutTimedEvents(items: DailyScheduleItem[], visibleDayKeys?: string[]): TimedEventLayout[] {
+  type PreparedEvent = DailyScheduleItem & {
+    eventKind: ScheduleTimedEventKind;
+    eventAt: string;
+  };
+
+  const visibleDays = visibleDayKeys ? new Set(visibleDayKeys) : null;
+  const byDay = new Map<string, PreparedEvent[]>();
+  for (const item of items) {
+    const events: PreparedEvent[] = item.booking_type === "hotel"
+      ? [
+          { ...item, eventKind: "hotel-check-in", eventAt: item.start_at },
+          { ...item, eventKind: "hotel-check-out", eventAt: item.end_at }
+        ]
+      : [{ ...item, eventKind: "grooming", eventAt: item.start_at }];
+
+    for (const event of events) {
+      const key = eventDateKey(event.eventAt);
+      if (!key || (visibleDays && !visibleDays.has(key))) {
+        continue;
+      }
+
+      byDay.set(key, [...(byDay.get(key) ?? []), event]);
+    }
   }
   const result: TimedEventLayout[] = [];
   for (const [dayKey, dayItems] of byDay) {
-    const sorted = [...dayItems].sort((a, b) => new Date(a.start_at).getTime() - new Date(b.start_at).getTime());
+    const sorted = [...dayItems].sort((a, b) => new Date(a.eventAt).getTime() - new Date(b.eventAt).getTime());
     let cluster: TimedEventLayout[] = [];
     let clusterEnd = -1;
     const flush = () => {
@@ -126,8 +180,10 @@ export function layoutTimedEvents(items: DailyScheduleItem[]): TimedEventLayout[
       clusterEnd = -1;
     };
     for (const item of sorted) {
-      const startMinute = minuteOfDay(item.start_at);
-      const endMinute = Math.max(startMinute + 30, minuteOfDay(item.end_at));
+      const startMinute = minuteOfDay(item.eventAt);
+      const endMinute = item.eventKind === "grooming"
+        ? Math.max(startMinute + 30, minuteOfDay(item.end_at))
+        : startMinute + 30;
       if (cluster.length && startMinute >= clusterEnd) flush();
       const occupied = new Set(cluster.filter((entry) => entry.endMinute > startMinute).map((entry) => entry.column));
       let column = 0;

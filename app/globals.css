@@ -4098,17 +4098,12 @@ textarea:focus-visible {
 .zoom-month-dots .is-grooming { background: var(--zoom-grooming); }
 .zoom-month-dots .is-hotel { background: var(--zoom-hotel); }
 .zoom-month-day small { display: block; margin-top: 5px; color: var(--text-soft); font-size: .72rem; }
-.zoom-day-header, .zoom-hotel-lane { display: grid; grid-template-columns: 58px minmax(0, 1fr); border-bottom: 1px solid var(--line); }
+.zoom-day-header { display: grid; grid-template-columns: 58px minmax(0, 1fr); border-bottom: 1px solid var(--line); }
 .zoom-day-header-grid { display: grid; min-width: 0; }
 .zoom-day-header-grid button { min-height: 58px; border: 0; border-left: 1px solid var(--line); background: transparent; color: var(--muted); cursor: pointer; }
 .zoom-day-header-grid button span, .zoom-day-header-grid button strong { display: block; }
 .zoom-day-header-grid button strong { margin-top: 2px; color: var(--text); font-size: 1.05rem; }
 .zoom-day-header-grid button.is-today strong { color: var(--brand); }
-.zoom-time-gutter-label { padding: 10px 6px; color: var(--muted); font-size: .7rem; text-align: center; }
-.zoom-hotel-grid { display: grid; gap: 4px; padding: 6px; min-width: 0; }
-.zoom-hotel-event { min-width: 0; min-height: 38px; padding: 5px 8px; border: 1px solid rgba(83, 123, 98, .22); border-radius: 10px; background: var(--zoom-hotel-soft); color: #315d45; text-align: left; cursor: pointer; overflow: hidden; }
-.zoom-hotel-event strong, .zoom-hotel-event span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.zoom-hotel-event span { font-size: .7rem; opacity: .8; }
 .zoom-timeline-scroll { max-height: calc(100vh - 250px); min-height: 420px; overflow: auto; overscroll-behavior: contain; }
 .zoom-timeline { position: relative; display: grid; grid-template-columns: 58px minmax(0, 1fr); min-width: max-content; }
 .zoom-hour-labels { position: relative; width: 58px; background: rgba(251, 247, 241, .92); }
@@ -4119,7 +4114,12 @@ textarea:focus-visible {
 .zoom-now-line { position: absolute; z-index: 4; left: 0; right: 0; height: 2px; background: #e04f43; pointer-events: none; }
 .zoom-now-line::before { content: ""; position: absolute; left: -4px; top: -3px; width: 8px; height: 8px; border-radius: 50%; background: #e04f43; }
 .zoom-timed-event { position: absolute; z-index: 3; min-width: 0; padding: 5px 7px; border: 1px solid rgba(193, 91, 63, .22); border-left: 4px solid var(--zoom-grooming); border-radius: 10px; background: var(--zoom-grooming-soft); color: #653323; text-align: left; cursor: pointer; overflow: hidden; box-shadow: 0 5px 12px rgba(118, 60, 43, .08); }
+.zoom-timed-event.is-hotel { border-color: rgba(83, 123, 98, .22); border-left-color: var(--zoom-hotel); background: var(--zoom-hotel-soft); color: #315d45; }
 .zoom-timed-event time, .zoom-timed-event strong, .zoom-timed-event span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.zoom-timed-event .zoom-timed-event-meta { display: flex; align-items: center; justify-content: space-between; gap: 4px; }
+.zoom-timed-event .zoom-timed-event-tag { display: inline-flex; flex: 0 0 auto; align-items: center; min-height: 16px; padding: 1px 6px; border-radius: 999px; font-size: .58rem; font-weight: 900; line-height: 1.2; }
+.zoom-timed-event-tag.is-check-in { background: rgba(51, 116, 77, .14); color: #28603e; }
+.zoom-timed-event-tag.is-check-out { background: rgba(166, 99, 47, .14); color: #814b24; }
 .zoom-timed-event time { font-size: .64rem; font-weight: 800; }
 .zoom-timed-event strong { font-size: .79rem; }
 .zoom-timed-event span { font-size: .68rem; opacity: .82; }
@@ -4144,7 +4144,7 @@ textarea:focus-visible {
   .zoom-month-number { width: 27px; height: 27px; font-size: .84rem; }
   .zoom-month-count, .zoom-month-day small { display: none; }
   .zoom-month-dots { margin-top: 4px; justify-content: center; }
-  .zoom-timeline-card.is-week .zoom-day-header, .zoom-timeline-card.is-week .zoom-hotel-lane { min-width: 828px; }
+  .zoom-timeline-card.is-week .zoom-day-header { min-width: 828px; }
   .zoom-timeline-card.is-week .zoom-timeline { min-width: 828px; }
   .zoom-timeline-scroll { max-height: calc(100vh - 260px); }
   .zoom-event-dialog { width: 100%; max-width: none; max-height: 88vh; margin: auto 0 0; border-radius: 24px 24px 0 0; }

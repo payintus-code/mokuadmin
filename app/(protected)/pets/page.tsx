@@ -1,6 +1,6 @@
 import { PageHeader } from "@/components/ui/page-header";
 import { SetupNotice } from "@/components/ui/setup-notice";
-import { PetsScreen } from "@/app/pets/pets-screen";
+import { PetsScreen } from "./pets-screen";
 import { requireAppUser } from "@/lib/auth";
 import { hasSupabaseEnv } from "@/lib/env";
 

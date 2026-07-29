@@ -1,9 +1,8 @@
 import type { Metadata, Viewport } from "next";
-import "./globals.css";
 import { getCurrentAppUser } from "@/lib/auth";
+import { ToastProvider } from "@/components/ui/toast-provider";
 import { BottomNav } from "@/components/ui/bottom-nav";
 import { FloatingBookingAction } from "@/components/ui/floating-booking-action";
-import { ToastProvider } from "@/components/ui/toast-provider";
 import { hasSupabaseEnv } from "@/lib/env";
 
 export const metadata: Metadata = {

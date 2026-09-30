@@ -52,7 +52,7 @@ function escapeRegExp(value: string) {
 
 function readLabeledValue(source: string, labels: string[]) {
   for (const label of labels) {
-    const pattern = new RegExp(`${escapeRegExp(label)}\\s*[:：]\\s*(.+)`, "i");
+    const pattern = new RegExp(`${escapeRegExp(label)}[^\\S\\r\\n]*[:：][^\\S\\r\\n]*([^\\r\\n]+)`, "i");
     const match = source.match(pattern);
 
     if (match?.[1]) {
@@ -82,6 +82,17 @@ function parseOwnerAndPhone(value: string) {
     phone,
     normalizedPhone: normalizePhone(phone)
   };
+}
+
+function readOwnerInfo(source: string) {
+  const combined = parseOwnerAndPhone(
+    readLabeledValue(source, ["ชื่อเจ้าของ/เบอร์", "ชื่อเจ้าของ / เบอร์"])
+  );
+  const customerName = readLabeledValue(source, ["ชื่อเจ้าของ"]) || combined.customerName;
+  const phoneLine = readLabeledValue(source, ["เบอร์โทร"]);
+  const phone = phoneLine ? parseOwnerAndPhone(phoneLine).phone : combined.phone;
+
+  return { customerName, phone, normalizedPhone: normalizePhone(phone) };
 }
 
 function toGregorianYear(shortThaiYear: number) {
@@ -154,11 +165,10 @@ function buildMissingFieldError(fields: string[]) {
 
 function parseGrooming(source: string): ImportedBookingChatResult {
   const petName = readLabeledValue(source, ["ชื่อน้อง", "ชื่อน้องแมว", "ชื่อน้องหมา"]);
-  const ownerLine = readLabeledValue(source, ["ชื่อเจ้าของ/เบอร์", "ชื่อเจ้าของ / เบอร์"]);
   const serviceText = readLabeledValue(source, ["รายการ"]);
   const appointmentDateTime = parseThaiDateTime(readLabeledValue(source, ["วันเวลา"]));
   const depositAmount = extractAmount(source.match(/\(.*?โอนมัดจำ.*?\)/i)?.[0] ?? "");
-  const ownerInfo = parseOwnerAndPhone(ownerLine);
+  const ownerInfo = readOwnerInfo(source);
 
   const missingFields = [
     !petName ? "petName" : "",
@@ -196,13 +206,12 @@ function parseGrooming(source: string): ImportedBookingChatResult {
 
 function parseHotel(source: string): ImportedBookingChatResult {
   const petName = readLabeledValue(source, ["ชื่อน้องแมว", "ชื่อน้องหมา", "ชื่อน้อง"]);
-  const ownerLine = readLabeledValue(source, ["ชื่อเจ้าของ / เบอร์", "ชื่อเจ้าของ/เบอร์"]);
   const stayLine = readLabeledValue(source, ["เข้าพัก"]);
   const nightsLine = readLabeledValue(source, ["จำนวนคืน"]);
   const additionalServiceText = readLabeledValue(source, ["รายการเพิ่มเติม"]);
   const totalAmount = extractAmount(readLabeledValue(source, ["รวมยอด"]));
   const depositAmount = extractAmount(source.match(/\(.*?โอนมัดจำ.*?\)/i)?.[0] ?? "");
-  const ownerInfo = parseOwnerAndPhone(ownerLine);
+  const ownerInfo = readOwnerInfo(source);
 
   const dateRangeLine = [stayLine, nightsLine].find((line) =>
     /(\d{1,2}\/\d{1,2}\/\d{2,4})\s*-\s*(\d{1,2}\/\d{1,2}\/\d{2,4})/.test(line)

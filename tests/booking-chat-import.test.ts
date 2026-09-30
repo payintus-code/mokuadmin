@@ -2,6 +2,46 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { parseImportedBookingChat } from "../lib/booking-chat-import.ts";
 
+const separateContactBooking = `✅ ยืนยันการจอง
+ชื่อน้อง : น้องคิงคอง (ปอม)
+ชื่อเจ้าของ : คุณนุ่น
+เบอร์โทร : 065-6496199
+รายการ : อาบน้ำ
+(โอนมัดจำ 200฿)
+วันเวลา : 1/10/69 12:00
+
+✅รับมัดจำการโอนจอง
+หากต้องการนั่งรอน้อง หรือต้องการเฝ้าดูน้อง สามารถแจ้งทางร้านล่วงหน้าได้เลยนะคะ เพื่อจัดพื้นที่ไว้ให้ค่ะ 🐱💖`;
+
+test("parses separate owner and phone lines with confirmation footer", () => {
+  for (const input of [separateContactBooking, separateContactBooking.replace(/\n/g, "\r\n")]) {
+    const result = parseImportedBookingChat(input);
+    assert.equal(result.success, true);
+    if (!result.success) return;
+
+    assert.deepEqual(result.data, {
+      serviceType: "grooming",
+      petName: "น้องคิงคอง (ปอม)",
+      customerName: "คุณนุ่น",
+      phone: "065-6496199",
+      normalizedPhone: "0656496199",
+      serviceText: "อาบน้ำ",
+      depositAmount: 200,
+      appointmentDateTime: "2026-10-01 12:00",
+      speciesHint: null
+    });
+  }
+});
+
+test("rejects empty separate contact fields without reading the following line", () => {
+  for (const [line, field] of [["ชื่อเจ้าของ : คุณนุ่น", "customerName"], ["เบอร์โทร : 065-6496199", "phone"]]) {
+    const result = parseImportedBookingChat(separateContactBooking.replace(line, line.split(":")[0] + ": "));
+    assert.equal(result.success, false);
+    if (result.success) return;
+    assert.match(result.error, new RegExp(field));
+  }
+});
+
 test("parses grooming booking text", () => {
   const result = parseImportedBookingChat(`✅ ยืนยันการจอง
 ชื่อน้อง : น้องอุนจิ

@@ -1,6 +1,12 @@
 export type BookingStatus = "pending" | "confirmed" | "in_progress" | "done" | "cancelled";
 export type BookingType = "grooming" | "hotel";
 export type UserRole = "admin" | "staff";
+
+export type StaffOption = {
+  id: string;
+  full_name: string;
+  role: UserRole;
+};
 export type TransactionType = "income" | "expense";
 export type PaymentMethod = "cash" | "promptpay_qr" | "transfer" | "card" | "other";
 export type PaymentStatus = "pending" | "paid" | "cancelled";
@@ -96,6 +102,8 @@ export type BookingDetailViewModel = {
   services_summary: string;
   total_amount: number;
   note: string | null;
+  performed_by: string | null;
+  performed_by_name: string | null;
   payment: BookingPayment | null;
 };
 

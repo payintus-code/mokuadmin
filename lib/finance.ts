@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { calculateStaffCommission, calculateStaffCommissionWithSharedIncome } from "@/lib/commission";
 import type { CashTransaction, Customer, PaymentMethod } from "@/types/database";
 
 type TransactionSummary = {
@@ -14,6 +15,21 @@ type TransactionSummary = {
 };
 
 export type FinanceReportSummary = TransactionSummary;
+
+export type StaffCommissionReportRow = {
+  staffId: string;
+  staffName: string;
+  serviceIncomeTotal: number;
+  totalCommission: number;
+  breakdown: ReturnType<typeof calculateStaffCommission>["breakdown"];
+};
+
+export type StaffCommissionReport = {
+  rows: StaffCommissionReportRow[];
+  totalCommission: number;
+  unassignedServiceIncome: number;
+  unassignedRecipientCount: number;
+};
 
 function toSingle<T>(value: T | T[] | null | undefined) {
   return Array.isArray(value) ? value[0] : value;
@@ -147,6 +163,86 @@ export async function getFinanceReportSummary(
       card: Number(paymentMethods.card ?? 0),
       other: Number(paymentMethods.other ?? 0)
     }
+  };
+}
+
+export async function getStaffCommissionReport(startDate: string, endDate: string): Promise<StaffCommissionReport> {
+  const supabase = await createClient();
+  const { data: transactions, error } = await supabase
+    .from("cash_transactions")
+    .select("amount, bookings(performed_by)")
+    .eq("transaction_type", "income")
+    .eq("category", "service_income")
+    .gte("transaction_date", startDate)
+    .lte("transaction_date", endDate);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  const totalsByStaffId = new Map<string, number>();
+  let unassignedServiceIncome = 0;
+
+  for (const transaction of transactions ?? []) {
+    const booking = toSingle(transaction.bookings as { performed_by?: string | null } | { performed_by?: string | null }[] | null);
+    const amount = Number(transaction.amount ?? 0);
+
+    if (!booking?.performed_by) {
+      unassignedServiceIncome += amount;
+      continue;
+    }
+
+    totalsByStaffId.set(booking.performed_by, (totalsByStaffId.get(booking.performed_by) ?? 0) + amount);
+  }
+
+  const assignedStaffIds = Array.from(totalsByStaffId.keys());
+  const staffNames = new Map<string, string>();
+  const activeStaffIds = new Set<string>();
+
+  const { data: staff, error: staffError } = await supabase
+    .from("app_users")
+    .select("id, full_name, is_active");
+
+  if (staffError) {
+    throw new Error(staffError.message);
+  }
+
+  for (const person of staff ?? []) {
+    staffNames.set(person.id, person.full_name);
+    if (person.is_active) {
+      activeStaffIds.add(person.id);
+    }
+  }
+
+  const staffIds = new Set(assignedStaffIds);
+  if (unassignedServiceIncome > 0) {
+    for (const staffId of activeStaffIds) {
+      staffIds.add(staffId);
+    }
+  }
+
+  const rows = Array.from(staffIds)
+    .map((staffId) => {
+      const commission = calculateStaffCommissionWithSharedIncome(
+        totalsByStaffId.get(staffId) ?? 0,
+        unassignedServiceIncome,
+        activeStaffIds.has(staffId)
+      );
+      return {
+        staffId,
+        staffName: staffNames.get(staffId) ?? "พนักงานที่ไม่พบข้อมูล",
+        serviceIncomeTotal: commission.serviceIncomeTotal,
+        totalCommission: commission.totalCommission,
+        breakdown: commission.breakdown
+      };
+    })
+    .sort((left, right) => right.serviceIncomeTotal - left.serviceIncomeTotal || left.staffName.localeCompare(right.staffName, "th"));
+
+  return {
+    rows,
+    totalCommission: rows.reduce((sum, row) => sum + row.totalCommission, 0),
+    unassignedServiceIncome,
+    unassignedRecipientCount: unassignedServiceIncome > 0 ? activeStaffIds.size : 0
   };
 }
 

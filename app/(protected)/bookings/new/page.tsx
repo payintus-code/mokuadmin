@@ -5,6 +5,7 @@ import { requireAppUser } from "@/lib/auth";
 import { hasSupabaseEnv } from "@/lib/env";
 import { getBookingRepeatDraft } from "@/lib/bookings";
 import { lookupCustomers } from "@/lib/lookups";
+import { getActiveStaffOptions } from "@/lib/staff";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -29,10 +30,11 @@ export default async function NewBookingPage({
   const repeatDraft = params.repeatBookingId ? await getBookingRepeatDraft(params.repeatBookingId) : null;
   const supabase = await createClient();
 
-  const [initialCustomers, { data: rooms }, { data: services }] = await Promise.all([
+  const [initialCustomers, { data: rooms }, { data: services }, staffOptions] = await Promise.all([
     lookupCustomers("", 25),
     supabase.from("rooms").select("id, code, name, room_type, nightly_rate, max_pets").eq("is_active", true).order("code"),
-    supabase.from("services").select("id, name, category, duration_minutes, price").eq("is_active", true).order("name")
+    supabase.from("services").select("id, name, category, duration_minutes, price").eq("is_active", true).order("name"),
+    getActiveStaffOptions()
   ]);
   const initialCustomerMap = new Map(initialCustomers.map((customer) => [customer.id, customer]));
 
@@ -48,6 +50,7 @@ export default async function NewBookingPage({
         initialPets={repeatDraft?.pets ?? []}
         rooms={rooms ?? []}
         services={services ?? []}
+        staffOptions={staffOptions}
         repeatDraft={
           repeatDraft
             ? {

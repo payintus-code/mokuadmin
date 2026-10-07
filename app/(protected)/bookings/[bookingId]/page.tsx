@@ -8,6 +8,7 @@ import { SetupNotice } from "@/components/ui/setup-notice";
 import { requireAppUser } from "@/lib/auth";
 import { hasSupabaseEnv } from "@/lib/env";
 import { getBookingDetail } from "@/lib/bookings";
+import { getActiveStaffOptions } from "@/lib/staff";
 import { formatBaht, formatDate, formatDateTime } from "@/lib/format";
 
 const bookingTypeLabel = {
@@ -36,7 +37,7 @@ export default async function BookingDetailPage({
   const currentUser = await requireAppUser();
   const { bookingId } = await params;
   const query = await searchParams;
-  const booking = await getBookingDetail(bookingId);
+  const [booking, staffOptions] = await Promise.all([getBookingDetail(bookingId), getActiveStaffOptions()]);
   const roomOrService = booking.room_name || booking.services_summary || "-";
   const paidAmount = Number(booking.payment?.amount ?? 0);
   const remainingAmount = Math.max(booking.total_amount - paidAmount, 0);
@@ -110,6 +111,13 @@ export default async function BookingDetailPage({
           <strong>{roomOrService}</strong>
         </div>
 
+        {booking.booking_type === "grooming" ? (
+          <div>
+            <div className="muted">พนักงานผู้ให้บริการ</div>
+            <strong>{booking.performed_by_name ?? "ยังไม่ระบุ"}</strong>
+          </div>
+        ) : null}
+
         <div>
           <div className="muted">หมายเหตุ</div>
           <div>{booking.note?.trim() ? booking.note : "-"}</div>
@@ -125,6 +133,8 @@ export default async function BookingDetailPage({
           paymentStatus={booking.payment_status}
           receiptNo={booking.payment?.receipt_no ?? null}
           note={booking.note}
+          performedById={booking.performed_by}
+          staffOptions={staffOptions}
           initialOpen={query?.edit === "1"}
         />
 

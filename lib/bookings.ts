@@ -34,6 +34,7 @@ export type CreateBookingInput = {
   totalAmount: number;
   items?: BookingItemInput[];
   actorUserId?: string | null;
+  performedById?: string | null;
 };
 
 export type AvailableRoomOption = {
@@ -317,11 +318,13 @@ export async function getBookingDetail(bookingId: string): Promise<BookingDetail
         end_at,
         total_amount,
         note,
+        performed_by,
         customers!inner(id, full_name, phone),
         pets!bookings_pet_id_fkey!inner(name),
         secondary_pets:pets!bookings_secondary_pet_id_fkey(name),
         rooms(name),
         booking_items(services(name)),
+        performer:app_users!bookings_performed_by_fkey(full_name),
         booking_payments(id, booking_id, amount, method, status, reference_no, receipt_no, receipt_issued_at, paid_at, note)
       `
     )
@@ -337,6 +340,7 @@ export async function getBookingDetail(bookingId: string): Promise<BookingDetail
   const secondaryPet = toSingle(data.secondary_pets);
   const room = toSingle(data.rooms);
   const payment = toSingle(data.booking_payments) as BookingPayment | null;
+  const performer = toSingle(data.performer);
   const paymentStatus = resolvePaymentStatus({
     totalAmount: Number(data.total_amount),
     paidAmount: Number(payment?.amount ?? 0),
@@ -364,6 +368,8 @@ export async function getBookingDetail(bookingId: string): Promise<BookingDetail
         .join(", ") ?? "",
     total_amount: Number(data.total_amount),
     note: data.note ?? null,
+    performed_by: data.performed_by ?? null,
+    performed_by_name: performer?.full_name ?? null,
     payment
   };
 }
@@ -529,6 +535,18 @@ export async function createBookingRecord(input: CreateBookingInput): Promise<st
     throw new Error(formatCreateBookingError(error));
   }
 
+  if (input.performedById) {
+    const { error: performerError } = await supabase
+      .from("bookings")
+      .update({ performed_by: input.performedById })
+      .eq("id", bookingId);
+
+    if (performerError) {
+      await supabase.from("bookings").delete().eq("id", bookingId);
+      throw new Error(performerError.message);
+    }
+  }
+
   return bookingId as string;
 }
 
@@ -649,6 +667,7 @@ export async function updateBookingRecord(
   if (input.totalAmount !== undefined) patch.total_amount = input.totalAmount;
   if (input.roomId !== undefined) patch.room_id = input.roomId ?? null;
   if (input.status) patch.status = input.status;
+  if (input.performedById !== undefined) patch.performed_by = input.performedById ?? null;
 
   const { error } = await supabase.from("bookings").update(patch).eq("id", bookingId);
 

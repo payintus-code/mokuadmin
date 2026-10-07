@@ -15,13 +15,14 @@ import {
 } from "@/lib/booking-chat-import";
 import type { AvailableRoomOption } from "@/lib/bookings";
 import type { GroomingDraftAvailability } from "@/lib/grooming-draft";
-import type { Customer, PaymentCollectionType, PaymentMethod, Pet, Room, Service } from "@/types/database";
+import type { Customer, PaymentCollectionType, PaymentMethod, Pet, Room, Service, StaffOption } from "@/types/database";
 
 type BookingFormProps = {
   initialCustomers: Customer[];
   initialPets?: Pet[];
   rooms: Room[];
   services: Service[];
+  staffOptions: StaffOption[];
   repeatDraft?: {
     bookingType: "grooming" | "hotel";
     customerId: string;
@@ -300,7 +301,7 @@ function ReviewButton({
   );
 }
 
-export function BookingForm({ initialCustomers, initialPets = [], rooms, services, repeatDraft = null }: BookingFormProps) {
+export function BookingForm({ initialCustomers, initialPets = [], rooms, services, staffOptions, repeatDraft = null }: BookingFormProps) {
   const router = useRouter();
   const { showToast } = useToast();
   const defaults = useMemo(() => buildDefaultDateRange(), []);
@@ -322,6 +323,7 @@ export function BookingForm({ initialCustomers, initialPets = [], rooms, service
   const [secondaryPetId, setSecondaryPetId] = useState(repeatDraft?.secondaryPetId ?? "");
   const [roomId, setRoomId] = useState("");
   const [serviceId, setServiceId] = useState(repeatDraft?.serviceId ?? "");
+  const [performedById, setPerformedById] = useState("");
   const [startAt, setStartAt] = useState(defaults.startAt);
   const [endAt, setEndAt] = useState(defaults.endAt);
   const [manualTotalAmount, setManualTotalAmount] = useState(repeatDraft?.totalAmount ? String(repeatDraft.totalAmount) : "");
@@ -726,6 +728,7 @@ export function BookingForm({ initialCustomers, initialPets = [], rooms, service
     setSecondaryPetId("");
     setRoomId("");
     setServiceId("");
+    setPerformedById("");
     setStartAt(nextDefaults.startAt);
     setEndAt(nextDefaults.endAt);
     setManualTotalAmount("");
@@ -1062,7 +1065,7 @@ export function BookingForm({ initialCustomers, initialPets = [], rooms, service
   const canSubmit =
     customerReady &&
     Boolean(startAt && effectiveEndAt) &&
-    (isGrooming ? Boolean(serviceId) : Boolean(roomId)) &&
+    (isGrooming ? Boolean(serviceId && performedById) : Boolean(roomId)) &&
     !groomingGuard.blocking &&
     !hotelRoomGuard.blocking &&
     !paymentValidation.blocking;
@@ -1424,6 +1427,25 @@ export function BookingForm({ initialCustomers, initialPets = [], rooms, service
                   </option>
                 ))}
               </select>
+            </label>
+
+            <label className="label">
+              พนักงานผู้ให้บริการ
+              <select
+                className="select"
+                name="performedById"
+                value={performedById}
+                onChange={(event) => setPerformedById(event.target.value)}
+                required
+              >
+                <option value="">เลือกพนักงานที่ทำ</option>
+                {staffOptions.map((staff) => (
+                  <option key={staff.id} value={staff.id}>
+                    {staff.full_name}
+                  </option>
+                ))}
+              </select>
+              <span className="label-hint">ยอดบริการของคิวนี้จะนำไปคิดค่าคอมของพนักงานคนที่เลือก</span>
             </label>
 
             {groomingGuard.message ? (

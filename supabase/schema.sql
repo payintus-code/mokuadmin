@@ -119,6 +119,7 @@ create table if not exists public.bookings (
   total_amount numeric(10,2) not null default 0,
   note text,
   created_by uuid references public.app_users (id) on delete set null,
+  performed_by uuid references public.app_users (id) on delete set null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   constraint bookings_time_chk check (end_at > start_at),
@@ -221,6 +222,7 @@ create index if not exists idx_bookings_status on public.bookings (status);
 create index if not exists idx_bookings_start_at on public.bookings (start_at);
 create index if not exists idx_bookings_type_start_at on public.bookings (booking_type, start_at);
 create index if not exists idx_booking_items_booking_id on public.booking_items (booking_id);
+create index if not exists idx_bookings_performed_by on public.bookings (performed_by);
 create index if not exists idx_cash_transactions_date on public.cash_transactions (transaction_date desc);
 create index if not exists idx_cash_transactions_type_date on public.cash_transactions (transaction_type, transaction_date desc);
 create index if not exists idx_cash_transactions_booking_id on public.cash_transactions (booking_id);

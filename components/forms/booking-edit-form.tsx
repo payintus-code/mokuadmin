@@ -6,7 +6,7 @@ import { updateBooking } from "@/app/actions/bookings";
 import { useToast } from "@/components/ui/toast-provider";
 import { getBookingDurationMinutes, validateBookingAmountEdit } from "@/lib/booking-edit";
 import { formatBaht } from "@/lib/format";
-import type { BookingType, PaymentStatus } from "@/types/database";
+import type { BookingType, PaymentStatus, StaffOption } from "@/types/database";
 
 type BookingEditFormProps = {
   bookingId: string;
@@ -18,6 +18,8 @@ type BookingEditFormProps = {
   paymentStatus: PaymentStatus;
   receiptNo: string | null;
   note: string | null;
+  performedById: string | null;
+  staffOptions: StaffOption[];
   initialOpen?: boolean;
 };
 
@@ -72,6 +74,8 @@ export function BookingEditForm({
   paymentStatus,
   receiptNo,
   note: initialNote,
+  performedById: initialPerformedById,
+  staffOptions,
   initialOpen = false
 }: BookingEditFormProps) {
   const router = useRouter();
@@ -82,6 +86,7 @@ export function BookingEditForm({
   const [endAt, setEndAt] = useState(() => toDateTimeLocalValue(initialEndAt));
   const [totalAmount, setTotalAmount] = useState(String(initialTotalAmount));
   const [note, setNote] = useState(initialNote ?? "");
+  const [performedById, setPerformedById] = useState(initialPerformedById ?? "");
   const [errorMessage, setErrorMessage] = useState("");
 
   const amountLocked = paymentStatus === "paid" && Boolean(receiptNo);
@@ -100,6 +105,7 @@ export function BookingEditForm({
     setEndAt(toDateTimeLocalValue(initialEndAt));
     setTotalAmount(String(initialTotalAmount));
     setNote(initialNote ?? "");
+    setPerformedById(initialPerformedById ?? "");
     setErrorMessage("");
   }
 
@@ -138,7 +144,8 @@ export function BookingEditForm({
             startAt,
             endAt,
             totalAmount: nextTotalAmount,
-            note
+            note,
+            performedById: bookingType === "grooming" ? performedById || null : undefined
           });
           showToast("แก้ไขรายละเอียดคิวเรียบร้อยแล้ว");
           setIsOpen(false);
@@ -203,6 +210,26 @@ export function BookingEditForm({
           <strong>{formatBaht(remainingAmount)}</strong>
         </div>
       </div>
+
+      {bookingType === "grooming" ? (
+        <label className="label">
+          พนักงานผู้ให้บริการ
+          <select
+            className="select"
+            value={performedById}
+            onChange={(event) => setPerformedById(event.target.value)}
+            disabled={isPending}
+          >
+            <option value="">ยังไม่ระบุพนักงาน</option>
+            {staffOptions.map((staff) => (
+              <option key={staff.id} value={staff.id}>
+                {staff.full_name}
+              </option>
+            ))}
+          </select>
+          <span className="label-hint">ค่าคอมจะนับให้พนักงานคนนี้ตามยอดรับเงินจริงของคิว</span>
+        </label>
+      ) : null}
 
       <label className="label">
         หมายเหตุ

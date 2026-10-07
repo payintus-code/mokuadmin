@@ -6,7 +6,7 @@ import { SetupNotice } from "@/components/ui/setup-notice";
 import { requireAdmin } from "@/lib/auth";
 import { hasSupabaseEnv } from "@/lib/env";
 import { formatBaht, formatDateInput } from "@/lib/format";
-import { getCashTransactionsByRange, getFinanceReportSummary, groupTransactionsByDate } from "@/lib/finance";
+import { getCashTransactionsByRange, getFinanceReportSummary, getStaffCommissionReport, groupTransactionsByDate } from "@/lib/finance";
 import type { TransactionType } from "@/types/database";
 
 export const dynamic = "force-dynamic";
@@ -51,35 +51,6 @@ function getTransactionFilter(value: string | undefined): TransactionFilter {
   }
 
   return "all";
-}
-
-function calculateStaffCommission(serviceIncomeTotal: number) {
-  const tiers = [
-    { label: "0 - 30,000 บาท", cap: 30000, rate: 0.03 },
-    { label: "30,001 - 60,000 บาท", cap: 60000, rate: 0.05 },
-    { label: "60,001 - 100,000 บาท", cap: 100000, rate: 0.08 },
-    { label: "ส่วนที่เกิน 100,000 บาท", cap: Number.POSITIVE_INFINITY, rate: 0.1 }
-  ] as const;
-
-  let previousCap = 0;
-  let totalCommission = 0;
-  const breakdown = tiers.map((tier) => {
-    const tierAmount = Math.max(0, Math.min(serviceIncomeTotal, tier.cap) - previousCap);
-    const commission = tierAmount * tier.rate;
-    totalCommission += commission;
-
-    if (Number.isFinite(tier.cap)) {
-      previousCap = tier.cap;
-    }
-
-    return {
-      ...tier,
-      tierAmount,
-      commission
-    };
-  });
-
-  return { totalCommission, breakdown };
 }
 
 function getTransactionFilterLabel(type: TransactionFilter) {
@@ -148,19 +119,21 @@ export default async function FinanceReportPage({
 
   await requireAdmin();
 
-  const [transactionsWithSentinel, summary] = await Promise.all([
+  const [transactionsWithSentinel, summary, staffCommission] = await Promise.all([
     getCashTransactionsByRange(startDate, endDate, {
       offset: (page - 1) * REPORT_PAGE_SIZE,
       limit: REPORT_PAGE_SIZE + 1,
       transactionType: type === "all" ? undefined : type
     }),
-    getFinanceReportSummary(startDate, endDate, type === "all" ? undefined : type)
+    getFinanceReportSummary(startDate, endDate, type === "all" ? undefined : type),
+    showCommission && type !== "expense"
+      ? getStaffCommissionReport(startDate, endDate)
+      : Promise.resolve({ rows: [], totalCommission: 0, unassignedServiceIncome: 0, unassignedRecipientCount: 0 })
   ]);
   const hasNextPage = transactionsWithSentinel.length > REPORT_PAGE_SIZE;
   const transactions = transactionsWithSentinel.slice(0, REPORT_PAGE_SIZE);
   const groups = groupTransactionsByDate(transactions);
   const showIncomeSections = type !== "expense";
-  const staffCommission = calculateStaffCommission(summary.service_income_total);
 
   return (
     <main className="stack">
@@ -292,25 +265,43 @@ export default async function FinanceReportPage({
           {showCommission ? (
             <section className="card stack">
               <div>
-                <div className="muted">ค่าคอมพนักงาน</div>
+                <div className="muted">ค่าคอมพนักงานรวม</div>
                 <h2 style={{ margin: "6px 0 0", color: "var(--accent-strong)" }}>{formatBaht(staffCommission.totalCommission)}</h2>
                 <p className="muted" style={{ marginBottom: 0 }}>
-                  คิดจากรายรับบริการ {formatBaht(summary.service_income_total)} ตามอัตราแบบขั้นบันได
+                  แยกยอดรับจริงตามพนักงานผู้ให้บริการ แล้วคิดอัตราแบบขั้นบันไดรายคน
                 </p>
               </div>
 
               <div className="stack">
-                {staffCommission.breakdown.map((item) => (
-                  <div key={item.label} className="card panel-muted">
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
-                      <strong>{item.label}</strong>
-                      <span>{Math.round(item.rate * 100)}%</span>
+                {staffCommission.rows.map((staff) => (
+                  <article key={staff.staffId} className="card panel-muted stack">
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
+                      <div>
+                        <strong>{staff.staffName}</strong>
+                        <div className="muted" style={{ marginTop: 4 }}>
+                          ยอดบริการ {formatBaht(staff.serviceIncomeTotal)}
+                        </div>
+                      </div>
+                      <strong style={{ color: "var(--accent-strong)" }}>{formatBaht(staff.totalCommission)}</strong>
                     </div>
-                    <div className="muted" style={{ marginTop: 6 }}>
-                      ยอดที่คิด: {formatBaht(item.tierAmount)} | ค่าคอม: {formatBaht(item.commission)}
+                    <div className="muted">
+                      {staff.breakdown
+                        .filter((item) => item.tierAmount > 0)
+                        .map((item) => `${Math.round(item.rate * 100)}% ของ ${formatBaht(item.tierAmount)} = ${formatBaht(item.commission)}`)
+                        .join(" · ")}
                     </div>
-                  </div>
+                  </article>
                 ))}
+
+                {!staffCommission.rows.length ? (
+                  <div className="soft-note">ยังไม่มียอดบริการที่ระบุพนักงานผู้ให้บริการในช่วงนี้</div>
+                ) : null}
+
+                {staffCommission.unassignedServiceIncome > 0 ? (
+                  <div className="soft-note">
+                    ยอดบริการที่ยังไม่ระบุพนักงาน {formatBaht(staffCommission.unassignedServiceIncome)} ถูกนำไปเป็นฐานค่าคอมเต็มจำนวนให้พนักงานที่ใช้งานอยู่ทุกคน รวม {staffCommission.unassignedRecipientCount} คน (ไม่เฉลี่ยหาร)
+                  </div>
+                ) : null}
               </div>
             </section>
           ) : null}

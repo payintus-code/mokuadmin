@@ -5,6 +5,7 @@ import { SetupNotice } from "@/components/ui/setup-notice";
 import { requireAppUser } from "@/lib/auth";
 import { hasSupabaseEnv } from "@/lib/env";
 import { prepareBookingPayment } from "@/lib/payments";
+import { getActiveStaffOptions } from "@/lib/staff";
 
 export const dynamic = "force-dynamic";
 
@@ -25,7 +26,10 @@ export default async function PaymentPage({
   await requireAppUser();
 
   const { bookingId } = await params;
-  const paymentInfo = await prepareBookingPayment(bookingId, { useAdminClient: true });
+  const [paymentInfo, staffOptions] = await Promise.all([
+    prepareBookingPayment(bookingId, { useAdminClient: true }),
+    getActiveStaffOptions()
+  ]);
 
   return (
     <main className="stack">
@@ -68,6 +72,10 @@ export default async function PaymentPage({
         qrDataUrl={paymentInfo.promptpayQrDataUrl}
         promptpayAvailable={Boolean(paymentInfo.shop.promptpay_target)}
         payment={paymentInfo.payment}
+        bookingType={paymentInfo.bookingType}
+        performedById={paymentInfo.performedById}
+        performedByName={paymentInfo.performedByName}
+        staffOptions={staffOptions}
       />
     </main>
   );

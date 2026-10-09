@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { confirmPayment, updateRecordedPayment } from "@/app/actions/payments";
 import { formatBaht } from "@/lib/format";
-import type { BookingPayment, PaymentMethod } from "@/types/database";
+import type { BookingPayment, BookingType, PaymentMethod, StaffOption } from "@/types/database";
 
 function SubmitButton({ pendingLabel, label, disabled = false }: { pendingLabel: string; label: string; disabled?: boolean }) {
   const { pending } = useFormStatus();
@@ -88,6 +88,10 @@ type BookingPaymentFormProps = {
   qrDataUrl: string | null;
   promptpayAvailable: boolean;
   payment: BookingPayment | null;
+  bookingType: BookingType;
+  performedById: string | null;
+  performedByName: string | null;
+  staffOptions: StaffOption[];
 };
 
 export function BookingPaymentForm({
@@ -98,12 +102,32 @@ export function BookingPaymentForm({
   bookingNo,
   qrDataUrl: initialPromptPayQrDataUrl,
   promptpayAvailable,
-  payment
+  payment,
+  bookingType,
+  performedById: initialPerformedById,
+  performedByName,
+  staffOptions
 }: BookingPaymentFormProps) {
   const savedMethod = payment?.method;
   const defaultMethod = savedMethod === "promptpay_qr" && !promptpayAvailable ? "cash" : savedMethod ?? (promptpayAvailable ? "promptpay_qr" : "cash");
   const [addMethod, setAddMethod] = useState<PaymentMethod>(defaultMethod);
   const [editMethod, setEditMethod] = useState<PaymentMethod>(defaultMethod);
+  const [performedById, setPerformedById] = useState(initialPerformedById ?? "");
+  const staffField = bookingType === "grooming" ? (
+    <label className="label">
+      พนักงานผู้ให้บริการ
+      <select className="select" name="performedById" value={performedById} onChange={(event) => setPerformedById(event.target.value)}>
+        <option value="">ยังไม่ระบุพนักงาน</option>
+        {initialPerformedById && !staffOptions.some((staff) => staff.id === initialPerformedById) ? (
+          <option value={initialPerformedById}>{performedByName ?? "พนักงานเดิม"} (ปิดใช้งาน)</option>
+        ) : null}
+        {staffOptions.map((staff) => (
+          <option key={staff.id} value={staff.id}>{staff.full_name}</option>
+        ))}
+      </select>
+      <span className="label-hint">ค่าคอมจะนับให้พนักงานคนนี้ตามยอดรับเงินจริงของคิว</span>
+    </label>
+  ) : null;
   const [totalAmountValue, setTotalAmountValue] = useState(formatMoneyInput(totalAmount));
   const [dynamicPromptPayQr, setDynamicPromptPayQr] = useState<{ amount: number; qrDataUrl: string | null; error: string }>({
     amount: 0,
@@ -263,6 +287,7 @@ export function BookingPaymentForm({
           ) : null}
 
           <div className="payment-extra-fields">
+            {staffField}
             <label className="label">
               เลขอ้างอิง
               <input className="input" name="referenceNo" defaultValue={payment?.reference_no ?? ""} placeholder="ไม่กรอกก็ได้" disabled={!hasAmountDue} />
@@ -296,6 +321,7 @@ export function BookingPaymentForm({
 
           <form action={updateRecordedPayment} className="stack">
             <input type="hidden" name="bookingId" value={bookingId} />
+            {staffField}
 
             <label className="label">
               ยอดที่บันทึกไว้

@@ -10,6 +10,8 @@ type BookingPaymentSummary = {
   bookingNo: string;
   bookingType: "grooming" | "hotel";
   bookingStatus: string;
+  performedById: string | null;
+  performedByName: string | null;
   totalAmount: number;
   paidAmount: number;
   remainingAmount: number;
@@ -264,6 +266,8 @@ export async function prepareBookingPayment(
         status,
         total_amount,
         customer_id,
+        performed_by,
+        performer:app_users!bookings_performed_by_fkey(full_name),
         customers!inner(full_name),
         pets!bookings_pet_id_fkey!inner(name),
         secondary_pets:pets!bookings_secondary_pet_id_fkey(name),
@@ -316,6 +320,8 @@ export async function prepareBookingPayment(
     bookingNo: data.booking_no,
     bookingType: data.booking_type,
     bookingStatus: data.status,
+    performedById: data.performed_by ?? null,
+    performedByName: toSingle(data.performer)?.full_name ?? null,
     totalAmount,
     paidAmount,
     remainingAmount,

@@ -4,8 +4,9 @@ import { redirect } from "next/navigation";
 import { requireAppUser } from "@/lib/auth";
 import { updateBookingRecord, updateBookingStatus } from "@/lib/bookings";
 import { confirmBookingPayment, prepareBookingPayment, updateBookingPayment } from "@/lib/payments";
-import { revalidateBookingSurfaces } from "@/lib/revalidation";
-import type { PaymentMethod } from "@/types/database";
+import { revalidateBookingSurfaces, revalidateFinanceSurfaces } from "@/lib/revalidation";
+import { createAdminClient } from "@/lib/supabase/admin";
+import type { BookingType, PaymentMethod } from "@/types/database";
 
 function withSaveToast(path: string) {
   return `${path}${path.includes("?") ? "&" : "?"}toast=save`;
@@ -17,6 +18,35 @@ function normalizeMoney(value: number) {
 
 function isSameMoney(left: number, right: number) {
   return Math.abs(left - right) <= 0.0001;
+}
+
+async function resolvePaymentPerformer(
+  formData: FormData,
+  booking: { bookingType: BookingType; performedById: string | null }
+) {
+  if (booking.bookingType !== "grooming" || !formData.has("performedById")) {
+    return undefined;
+  }
+
+  const performedById = String(formData.get("performedById") ?? "").trim() || null;
+  if (performedById === booking.performedById) {
+    return undefined;
+  }
+
+  if (performedById) {
+    const { data, error } = await createAdminClient()
+      .from("app_users")
+      .select("id")
+      .eq("id", performedById)
+      .eq("is_active", true)
+      .maybeSingle();
+
+    if (error || !data) {
+      throw new Error("ไม่พบพนักงานผู้ให้บริการ หรือบัญชีถูกปิดใช้งานแล้ว");
+    }
+  }
+
+  return performedById;
 }
 
 export async function confirmPayment(formData: FormData) {
@@ -38,6 +68,7 @@ export async function confirmPayment(formData: FormData) {
   }
 
   const paymentInfo = await prepareBookingPayment(bookingId, { useAdminClient: true, includeQr: false });
+  const performedById = await resolvePaymentPerformer(formData, paymentInfo);
   const nextTotalAmount = normalizeMoney(totalAmount);
   const paidAmount = normalizeMoney(paymentInfo.paidAmount);
 
@@ -56,11 +87,15 @@ export async function confirmPayment(formData: FormData) {
   }
 
   if (remainingAmount <= 0) {
+    if (performedById !== undefined) {
+      await updateBookingRecord(bookingId, { performedById });
+    }
     if (paymentInfo.bookingStatus !== "cancelled") {
       await updateBookingStatus(bookingId, "done");
     }
 
     revalidateBookingSurfaces(bookingId);
+    revalidateFinanceSurfaces({ includeReport: true });
     redirect(withSaveToast("/?open=unpaid"));
   }
 
@@ -77,11 +112,16 @@ export async function confirmPayment(formData: FormData) {
     actorUserId: currentUser.id
   });
 
+  if (performedById !== undefined) {
+    await updateBookingRecord(bookingId, { performedById });
+  }
+
   if (paymentInfo.bookingStatus !== "cancelled") {
     await updateBookingStatus(bookingId, "done");
   }
 
   revalidateBookingSurfaces(bookingId);
+  revalidateFinanceSurfaces({ includeReport: true });
   redirect(withSaveToast("/?open=unpaid"));
 }
 
@@ -98,6 +138,9 @@ export async function updateRecordedPayment(formData: FormData) {
     throw new Error("ไม่พบรายการจอง");
   }
 
+  const paymentInfo = await prepareBookingPayment(bookingId, { useAdminClient: true, includeQr: false });
+  const performedById = await resolvePaymentPerformer(formData, paymentInfo);
+
   await updateBookingPayment({
     bookingId,
     amount,
@@ -107,6 +150,11 @@ export async function updateRecordedPayment(formData: FormData) {
     actorUserId: currentUser.id
   });
 
+  if (performedById !== undefined) {
+    await updateBookingRecord(bookingId, { performedById });
+  }
+
   revalidateBookingSurfaces(bookingId);
+  revalidateFinanceSurfaces({ includeReport: true });
   redirect(withSaveToast("/?open=unpaid"));
 }

@@ -1112,6 +1112,54 @@ textarea:focus-visible {
   gap: 14px;
 }
 
+.staff-management-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  align-items: start;
+  gap: 28px;
+}
+
+.staff-form-fields {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+
+.staff-directory {
+  padding: 20px 0;
+  min-width: 0;
+}
+
+.staff-directory-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.staff-directory-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 18px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.staff-directory-person {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 760px) {
+  .staff-management-layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+}
+
 .list-card-top,
 .schedule-list-top,
 .schedule-list-footer,

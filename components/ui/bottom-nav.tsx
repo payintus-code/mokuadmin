@@ -1,7 +1,7 @@
 "use client";
 
 import clsx from "clsx";
-import { BarChart3, CalendarDays, Coins, Home, Hotel, Menu, PawPrint, Users, X } from "lucide-react";
+import { BarChart3, CalendarDays, Coins, Home, Hotel, Menu, PawPrint, UserRoundPlus, Users, X } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, type KeyboardEvent } from "react";
 import { PendingLink } from "@/components/ui/pending-link";
@@ -13,13 +13,14 @@ const items = [
   { href: "/pets", label: "ข้อมูลสัตว์เลี้ยง", icon: PawPrint },
   { href: "/rooms", label: "ห้องพัก", icon: Hotel },
   { href: "/marketing", label: "Marketing", icon: BarChart3 },
-  { href: "/finance", label: "การเงิน", icon: Coins }
+  { href: "/finance", label: "การเงิน", icon: Coins },
+  { href: "/staff", label: "พนักงาน", icon: UserRoundPlus }
 ];
 
 export function BottomNav({ canViewFinance }: { canViewFinance: boolean }) {
   const pathname = usePathname();
   const checkboxRef = useRef<HTMLInputElement>(null);
-  const visibleItems = canViewFinance ? items : items.filter((item) => item.href !== "/finance" && item.href !== "/marketing");
+  const visibleItems = canViewFinance ? items : items.filter((item) => !["/finance", "/marketing", "/staff"].includes(item.href));
   const primaryItems = visibleItems.slice(0, 4);
 
   function isActivePath(href: string) {

@@ -194,7 +194,7 @@ types/
 
 ## 8. Step-by-Step เริ่มใช้งาน
 
-ก่อนเริ่ม แนะนำให้ใช้ Node.js `20.19.0` ขึ้นไป
+ก่อนเริ่ม ใช้ Node.js `24.x` ให้ตรงกับ CI และระบบ deploy
 
 1. สร้างโปรเจกต์ Supabase
 2. เปิด SQL editor แล้วรัน [schema.sql](/C:/MokuPetAdmin/supabase/schema.sql)

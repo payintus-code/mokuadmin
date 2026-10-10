@@ -114,7 +114,7 @@ export default async function BookingDetailPage({
         {booking.booking_type === "grooming" ? (
           <div>
             <div className="muted">พนักงานผู้ให้บริการ</div>
-            <strong>{booking.performed_by_name ?? "ยังไม่ระบุ"}</strong>
+            <strong>{[booking.performed_by_name, booking.secondary_performed_by_name].filter(Boolean).join(" / ") || "ยังไม่ระบุ"}</strong>
           </div>
         ) : null}
 
@@ -134,6 +134,9 @@ export default async function BookingDetailPage({
           receiptNo={booking.payment?.receipt_no ?? null}
           note={booking.note}
           performedById={booking.performed_by}
+          secondaryPerformedById={booking.secondary_performed_by}
+          performedByName={booking.performed_by_name}
+          secondaryPerformedByName={booking.secondary_performed_by_name}
           staffOptions={staffOptions}
           initialOpen={query?.edit === "1"}
         />

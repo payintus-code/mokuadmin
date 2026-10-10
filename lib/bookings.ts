@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { evaluateGroomingDraftAvailability, type GroomingOverlapRow } from "@/lib/grooming-draft";
 import { formatCreateBookingError } from "@/lib/booking-errors";
 import { validateBookingAmountEdit } from "@/lib/booking-edit";
+import { validateStaffAssignment } from "@/lib/staff";
 import type {
   BookingDetailViewModel,
   BookingPayment,
@@ -35,6 +36,7 @@ export type CreateBookingInput = {
   items?: BookingItemInput[];
   actorUserId?: string | null;
   performedById?: string | null;
+  secondaryPerformedById?: string | null;
 };
 
 export type AvailableRoomOption = {
@@ -319,12 +321,14 @@ export async function getBookingDetail(bookingId: string): Promise<BookingDetail
         total_amount,
         note,
         performed_by,
+        secondary_performed_by,
         customers!inner(id, full_name, phone),
         pets!bookings_pet_id_fkey!inner(name),
         secondary_pets:pets!bookings_secondary_pet_id_fkey(name),
         rooms(name),
         booking_items(services(name)),
         performer:app_users!bookings_performed_by_fkey(full_name),
+        secondary_performer:app_users!bookings_secondary_performed_by_fkey(full_name),
         booking_payments(id, booking_id, amount, method, status, reference_no, receipt_no, receipt_issued_at, paid_at, note)
       `
     )
@@ -370,6 +374,8 @@ export async function getBookingDetail(bookingId: string): Promise<BookingDetail
     note: data.note ?? null,
     performed_by: data.performed_by ?? null,
     performed_by_name: performer?.full_name ?? null,
+    secondary_performed_by: data.secondary_performed_by ?? null,
+    secondary_performed_by_name: toSingle(data.secondary_performer)?.full_name ?? null,
     payment
   };
 }
@@ -503,6 +509,7 @@ export async function checkGroomingDraftAvailability(
 
 export async function createBookingRecord(input: CreateBookingInput): Promise<string> {
   assertStartBeforeEnd(input.startAt, input.endAt);
+  await validateStaffAssignment(input.performedById ?? null, input.secondaryPerformedById ?? null);
 
   const supabase = createAdminClient();
   const petIds = [input.petId, input.secondaryPetId].filter((value): value is string => Boolean(value));
@@ -535,10 +542,10 @@ export async function createBookingRecord(input: CreateBookingInput): Promise<st
     throw new Error(formatCreateBookingError(error));
   }
 
-  if (input.performedById) {
+  if (input.performedById || input.secondaryPerformedById) {
     const { error: performerError } = await supabase
       .from("bookings")
-      .update({ performed_by: input.performedById })
+      .update({ performed_by: input.performedById ?? null, secondary_performed_by: input.secondaryPerformedById ?? null })
       .eq("id", bookingId);
 
     if (performerError) {
@@ -598,7 +605,7 @@ export async function updateBookingRecord(
     await Promise.all([
       supabase
         .from("bookings")
-        .select("booking_type, status, pet_id, secondary_pet_id, room_id, start_at, end_at, total_amount")
+        .select("booking_type, status, pet_id, secondary_pet_id, room_id, start_at, end_at, total_amount, performed_by, secondary_performed_by")
         .eq("id", bookingId)
         .single(),
       supabase
@@ -617,6 +624,13 @@ export async function updateBookingRecord(
   }
 
   const effectiveStartAt = input.startAt ?? existingBooking.start_at;
+  if (input.performedById !== undefined || input.secondaryPerformedById !== undefined) {
+    await validateStaffAssignment(
+      input.performedById === undefined ? existingBooking.performed_by : input.performedById,
+      input.secondaryPerformedById === undefined ? existingBooking.secondary_performed_by : input.secondaryPerformedById,
+      [existingBooking.performed_by, existingBooking.secondary_performed_by]
+    );
+  }
   const effectiveEndAt = input.endAt ?? existingBooking.end_at;
 
   assertStartBeforeEnd(effectiveStartAt, effectiveEndAt);
@@ -668,6 +682,7 @@ export async function updateBookingRecord(
   if (input.roomId !== undefined) patch.room_id = input.roomId ?? null;
   if (input.status) patch.status = input.status;
   if (input.performedById !== undefined) patch.performed_by = input.performedById ?? null;
+  if (input.secondaryPerformedById !== undefined) patch.secondary_performed_by = input.secondaryPerformedById ?? null;
 
   const { error } = await supabase.from("bookings").update(patch).eq("id", bookingId);
 

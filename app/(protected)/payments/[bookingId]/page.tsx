@@ -75,6 +75,8 @@ export default async function PaymentPage({
         bookingType={paymentInfo.bookingType}
         performedById={paymentInfo.performedById}
         performedByName={paymentInfo.performedByName}
+        secondaryPerformedById={paymentInfo.secondaryPerformedById}
+        secondaryPerformedByName={paymentInfo.secondaryPerformedByName}
         staffOptions={staffOptions}
       />
     </main>

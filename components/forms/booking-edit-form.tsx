@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useTransition, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import { BookingStaffFields } from "@/components/forms/booking-staff-fields";
 import { updateBooking } from "@/app/actions/bookings";
 import { useToast } from "@/components/ui/toast-provider";
 import { getBookingDurationMinutes, validateBookingAmountEdit } from "@/lib/booking-edit";
@@ -19,6 +20,9 @@ type BookingEditFormProps = {
   receiptNo: string | null;
   note: string | null;
   performedById: string | null;
+  secondaryPerformedById: string | null;
+  performedByName: string | null;
+  secondaryPerformedByName: string | null;
   staffOptions: StaffOption[];
   initialOpen?: boolean;
 };
@@ -75,6 +79,9 @@ export function BookingEditForm({
   receiptNo,
   note: initialNote,
   performedById: initialPerformedById,
+  secondaryPerformedById: initialSecondaryPerformedById,
+  performedByName,
+  secondaryPerformedByName,
   staffOptions,
   initialOpen = false
 }: BookingEditFormProps) {
@@ -87,6 +94,7 @@ export function BookingEditForm({
   const [totalAmount, setTotalAmount] = useState(String(initialTotalAmount));
   const [note, setNote] = useState(initialNote ?? "");
   const [performedById, setPerformedById] = useState(initialPerformedById ?? "");
+  const [secondaryPerformedById, setSecondaryPerformedById] = useState(initialSecondaryPerformedById ?? "");
   const [errorMessage, setErrorMessage] = useState("");
 
   const amountLocked = paymentStatus === "paid" && Boolean(receiptNo);
@@ -106,6 +114,7 @@ export function BookingEditForm({
     setTotalAmount(String(initialTotalAmount));
     setNote(initialNote ?? "");
     setPerformedById(initialPerformedById ?? "");
+    setSecondaryPerformedById(initialSecondaryPerformedById ?? "");
     setErrorMessage("");
   }
 
@@ -145,7 +154,8 @@ export function BookingEditForm({
             endAt,
             totalAmount: nextTotalAmount,
             note,
-            performedById: bookingType === "grooming" ? performedById || null : undefined
+            performedById: bookingType === "grooming" ? performedById || null : undefined,
+            secondaryPerformedById: bookingType === "grooming" ? secondaryPerformedById || null : undefined
           });
           showToast("แก้ไขรายละเอียดคิวเรียบร้อยแล้ว");
           setIsOpen(false);
@@ -212,23 +222,9 @@ export function BookingEditForm({
       </div>
 
       {bookingType === "grooming" ? (
-        <label className="label">
-          พนักงานผู้ให้บริการ
-          <select
-            className="select"
-            value={performedById}
-            onChange={(event) => setPerformedById(event.target.value)}
-            disabled={isPending}
-          >
-            <option value="">ยังไม่ระบุพนักงาน</option>
-            {staffOptions.map((staff) => (
-              <option key={staff.id} value={staff.id}>
-                {staff.full_name}
-              </option>
-            ))}
-          </select>
-          <span className="label-hint">ค่าคอมจะนับให้พนักงานคนนี้ตามยอดรับเงินจริงของคิว</span>
-        </label>
+        <BookingStaffFields primaryId={performedById} secondaryId={secondaryPerformedById}
+          onPrimaryChange={setPerformedById} onSecondaryChange={setSecondaryPerformedById} staffOptions={staffOptions} disabled={isPending}
+          savedStaff={[{ id: initialPerformedById, name: performedByName }, { id: initialSecondaryPerformedById, name: secondaryPerformedByName }]} />
       ) : null}
 
       <label className="label">

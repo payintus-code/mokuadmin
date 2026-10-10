@@ -120,11 +120,13 @@ create table if not exists public.bookings (
   note text,
   created_by uuid references public.app_users (id) on delete set null,
   performed_by uuid references public.app_users (id) on delete set null,
+  secondary_performed_by uuid references public.app_users (id) on delete set null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   constraint bookings_time_chk check (end_at > start_at),
   constraint bookings_total_amount_chk check (total_amount >= 0),
   constraint bookings_distinct_pets_chk check (secondary_pet_id is null or secondary_pet_id <> pet_id),
+  constraint bookings_distinct_performers_check check (performed_by is null or secondary_performed_by is null or performed_by <> secondary_performed_by),
   constraint bookings_room_type_chk check (
     (booking_type = 'hotel' and room_id is not null) or
     (booking_type = 'grooming' and room_id is null)

@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import { BookingStaffFields } from "@/components/forms/booking-staff-fields";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useFormStatus } from "react-dom";
@@ -91,6 +92,8 @@ type BookingPaymentFormProps = {
   bookingType: BookingType;
   performedById: string | null;
   performedByName: string | null;
+  secondaryPerformedById: string | null;
+  secondaryPerformedByName: string | null;
   staffOptions: StaffOption[];
 };
 
@@ -106,6 +109,8 @@ export function BookingPaymentForm({
   bookingType,
   performedById: initialPerformedById,
   performedByName,
+  secondaryPerformedById: initialSecondaryPerformedById,
+  secondaryPerformedByName,
   staffOptions
 }: BookingPaymentFormProps) {
   const savedMethod = payment?.method;
@@ -113,20 +118,11 @@ export function BookingPaymentForm({
   const [addMethod, setAddMethod] = useState<PaymentMethod>(defaultMethod);
   const [editMethod, setEditMethod] = useState<PaymentMethod>(defaultMethod);
   const [performedById, setPerformedById] = useState(initialPerformedById ?? "");
+  const [secondaryPerformedById, setSecondaryPerformedById] = useState(initialSecondaryPerformedById ?? "");
   const staffField = bookingType === "grooming" ? (
-    <label className="label">
-      พนักงานผู้ให้บริการ
-      <select className="select" name="performedById" value={performedById} onChange={(event) => setPerformedById(event.target.value)}>
-        <option value="">ยังไม่ระบุพนักงาน</option>
-        {initialPerformedById && !staffOptions.some((staff) => staff.id === initialPerformedById) ? (
-          <option value={initialPerformedById}>{performedByName ?? "พนักงานเดิม"} (ปิดใช้งาน)</option>
-        ) : null}
-        {staffOptions.map((staff) => (
-          <option key={staff.id} value={staff.id}>{staff.full_name}</option>
-        ))}
-      </select>
-      <span className="label-hint">ค่าคอมจะนับให้พนักงานคนนี้ตามยอดรับเงินจริงของคิว</span>
-    </label>
+    <BookingStaffFields primaryId={performedById} secondaryId={secondaryPerformedById}
+      onPrimaryChange={setPerformedById} onSecondaryChange={setSecondaryPerformedById} staffOptions={staffOptions}
+      savedStaff={[{ id: initialPerformedById, name: performedByName }, { id: initialSecondaryPerformedById, name: secondaryPerformedByName }]} />
   ) : null;
   const [totalAmountValue, setTotalAmountValue] = useState(formatMoneyInput(totalAmount));
   const [dynamicPromptPayQr, setDynamicPromptPayQr] = useState<{ amount: number; qrDataUrl: string | null; error: string }>({

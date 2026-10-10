@@ -1,5 +1,7 @@
 "use client";
 
+import { BookingStaffFields } from "@/components/forms/booking-staff-fields";
+
 import { Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
@@ -324,6 +326,7 @@ export function BookingForm({ initialCustomers, initialPets = [], rooms, service
   const [roomId, setRoomId] = useState("");
   const [serviceId, setServiceId] = useState(repeatDraft?.serviceId ?? "");
   const [performedById, setPerformedById] = useState("");
+  const [secondaryPerformedById, setSecondaryPerformedById] = useState("");
   const [startAt, setStartAt] = useState(defaults.startAt);
   const [endAt, setEndAt] = useState(defaults.endAt);
   const [manualTotalAmount, setManualTotalAmount] = useState(repeatDraft?.totalAmount ? String(repeatDraft.totalAmount) : "");
@@ -729,6 +732,7 @@ export function BookingForm({ initialCustomers, initialPets = [], rooms, service
     setRoomId("");
     setServiceId("");
     setPerformedById("");
+    setSecondaryPerformedById("");
     setStartAt(nextDefaults.startAt);
     setEndAt(nextDefaults.endAt);
     setManualTotalAmount("");
@@ -1429,24 +1433,8 @@ export function BookingForm({ initialCustomers, initialPets = [], rooms, service
               </select>
             </label>
 
-            <label className="label">
-              พนักงานผู้ให้บริการ
-              <select
-                className="select"
-                name="performedById"
-                value={performedById}
-                onChange={(event) => setPerformedById(event.target.value)}
-                required
-              >
-                <option value="">เลือกพนักงานที่ทำ</option>
-                {staffOptions.map((staff) => (
-                  <option key={staff.id} value={staff.id}>
-                    {staff.full_name}
-                  </option>
-                ))}
-              </select>
-              <span className="label-hint">ยอดบริการของคิวนี้จะนำไปคิดค่าคอมของพนักงานคนที่เลือก</span>
-            </label>
+            <BookingStaffFields primaryId={performedById} secondaryId={secondaryPerformedById}
+              onPrimaryChange={setPerformedById} onSecondaryChange={setSecondaryPerformedById} staffOptions={staffOptions} required />
 
             {groomingGuard.message ? (
               <FieldMessage tone={groomingGuard.ok ? "success" : "warning"}>{groomingGuard.message}</FieldMessage>

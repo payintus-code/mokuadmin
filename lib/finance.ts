@@ -1,6 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { calculateStaffCommission, calculateStaffCommissionWithSharedIncome } from "@/lib/commission";
+import { splitStaffIncome } from "@/lib/booking-staff";
 import type { CashTransaction, Customer, PaymentMethod } from "@/types/database";
 
 type TransactionSummary = {
@@ -170,7 +171,7 @@ export async function getStaffCommissionReport(startDate: string, endDate: strin
   const supabase = await createClient();
   const { data: transactions, error } = await supabase
     .from("cash_transactions")
-    .select("amount, bookings(performed_by)")
+    .select("amount, bookings(performed_by, secondary_performed_by)")
     .eq("transaction_type", "income")
     .eq("category", "service_income")
     .gte("transaction_date", startDate)
@@ -184,15 +185,18 @@ export async function getStaffCommissionReport(startDate: string, endDate: strin
   let unassignedServiceIncome = 0;
 
   for (const transaction of transactions ?? []) {
-    const booking = toSingle(transaction.bookings as { performed_by?: string | null } | { performed_by?: string | null }[] | null);
+    const booking = toSingle(transaction.bookings);
     const amount = Number(transaction.amount ?? 0);
 
-    if (!booking?.performed_by) {
+    const shares = splitStaffIncome(amount, booking?.performed_by, booking?.secondary_performed_by);
+    if (!shares.length) {
       unassignedServiceIncome += amount;
       continue;
     }
 
-    totalsByStaffId.set(booking.performed_by, (totalsByStaffId.get(booking.performed_by) ?? 0) + amount);
+    for (const share of shares) {
+      totalsByStaffId.set(share.staffId, (totalsByStaffId.get(share.staffId) ?? 0) + share.amount);
+    }
   }
 
   const assignedStaffIds = Array.from(totalsByStaffId.keys());

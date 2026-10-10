@@ -12,6 +12,8 @@ type BookingPaymentSummary = {
   bookingStatus: string;
   performedById: string | null;
   performedByName: string | null;
+  secondaryPerformedById: string | null;
+  secondaryPerformedByName: string | null;
   totalAmount: number;
   paidAmount: number;
   remainingAmount: number;
@@ -267,7 +269,9 @@ export async function prepareBookingPayment(
         total_amount,
         customer_id,
         performed_by,
+        secondary_performed_by,
         performer:app_users!bookings_performed_by_fkey(full_name),
+        secondary_performer:app_users!bookings_secondary_performed_by_fkey(full_name),
         customers!inner(full_name),
         pets!bookings_pet_id_fkey!inner(name),
         secondary_pets:pets!bookings_secondary_pet_id_fkey(name),
@@ -322,6 +326,8 @@ export async function prepareBookingPayment(
     bookingStatus: data.status,
     performedById: data.performed_by ?? null,
     performedByName: toSingle(data.performer)?.full_name ?? null,
+    secondaryPerformedById: data.secondary_performed_by ?? null,
+    secondaryPerformedByName: toSingle(data.secondary_performer)?.full_name ?? null,
     totalAmount,
     paidAmount,
     remainingAmount,
@@ -647,6 +653,7 @@ export async function getReceiptData(bookingId: string): Promise<ReceiptViewMode
 
   return {
     booking_id: paymentInfo.bookingId,
+    staff_names: [paymentInfo.performedByName, paymentInfo.secondaryPerformedByName].filter((name): name is string => Boolean(name)),
     booking_no: paymentInfo.bookingNo,
     receipt_no: paymentInfo.payment.receipt_no,
     receipt_issued_at: paymentInfo.payment.receipt_issued_at ?? paymentInfo.payment.paid_at,

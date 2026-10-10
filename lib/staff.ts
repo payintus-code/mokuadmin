@@ -1,5 +1,16 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { StaffOption } from "@/types/database";
+import { validateBookingStaff } from "@/lib/booking-staff";
+
+export async function validateStaffAssignment(primaryId: string | null, secondaryId: string | null, existingIds: Array<string | null> = []) {
+  validateBookingStaff(primaryId, secondaryId);
+  const newIds = [primaryId, secondaryId].filter((id): id is string => Boolean(id) && !existingIds.includes(id));
+  if (!newIds.length) return;
+  const { data, error } = await createAdminClient().from("app_users").select("id").in("id", newIds).eq("is_active", true);
+  if (error || data?.length !== newIds.length) {
+    throw new Error("ไม่พบพนักงานผู้ให้บริการ หรือบัญชีถูกปิดใช้งานแล้ว");
+  }
+}
 
 export type StaffListItem = StaffOption & { is_active: boolean };
 

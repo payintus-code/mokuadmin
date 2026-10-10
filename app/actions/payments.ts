@@ -5,7 +5,7 @@ import { requireAppUser } from "@/lib/auth";
 import { updateBookingRecord, updateBookingStatus } from "@/lib/bookings";
 import { confirmBookingPayment, prepareBookingPayment, updateBookingPayment } from "@/lib/payments";
 import { revalidateBookingSurfaces, revalidateFinanceSurfaces } from "@/lib/revalidation";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { validateStaffAssignment } from "@/lib/staff";
 import type { BookingType, PaymentMethod } from "@/types/database";
 
 function withSaveToast(path: string) {
@@ -22,31 +22,16 @@ function isSameMoney(left: number, right: number) {
 
 async function resolvePaymentPerformer(
   formData: FormData,
-  booking: { bookingType: BookingType; performedById: string | null }
+  booking: { bookingType: BookingType; performedById: string | null; secondaryPerformedById: string | null }
 ) {
-  if (booking.bookingType !== "grooming" || !formData.has("performedById")) {
+  if (booking.bookingType !== "grooming" || (!formData.has("performedById") && !formData.has("secondaryPerformedById"))) {
     return undefined;
   }
-
-  const performedById = String(formData.get("performedById") ?? "").trim() || null;
-  if (performedById === booking.performedById) {
-    return undefined;
-  }
-
-  if (performedById) {
-    const { data, error } = await createAdminClient()
-      .from("app_users")
-      .select("id")
-      .eq("id", performedById)
-      .eq("is_active", true)
-      .maybeSingle();
-
-    if (error || !data) {
-      throw new Error("ไม่พบพนักงานผู้ให้บริการ หรือบัญชีถูกปิดใช้งานแล้ว");
-    }
-  }
-
-  return performedById;
+  const performedById = formData.has("performedById") ? String(formData.get("performedById") ?? "").trim() || null : booking.performedById;
+  const secondaryPerformedById = formData.has("secondaryPerformedById") ? String(formData.get("secondaryPerformedById") ?? "").trim() || null : booking.secondaryPerformedById;
+  if (performedById === booking.performedById && secondaryPerformedById === booking.secondaryPerformedById) return undefined;
+  await validateStaffAssignment(performedById, secondaryPerformedById, [booking.performedById, booking.secondaryPerformedById]);
+  return { performedById, secondaryPerformedById };
 }
 
 export async function confirmPayment(formData: FormData) {
@@ -68,7 +53,7 @@ export async function confirmPayment(formData: FormData) {
   }
 
   const paymentInfo = await prepareBookingPayment(bookingId, { useAdminClient: true, includeQr: false });
-  const performedById = await resolvePaymentPerformer(formData, paymentInfo);
+  const staffAssignment = await resolvePaymentPerformer(formData, paymentInfo);
   const nextTotalAmount = normalizeMoney(totalAmount);
   const paidAmount = normalizeMoney(paymentInfo.paidAmount);
 
@@ -87,8 +72,8 @@ export async function confirmPayment(formData: FormData) {
   }
 
   if (remainingAmount <= 0) {
-    if (performedById !== undefined) {
-      await updateBookingRecord(bookingId, { performedById });
+    if (staffAssignment !== undefined) {
+      await updateBookingRecord(bookingId, staffAssignment);
     }
     if (paymentInfo.bookingStatus !== "cancelled") {
       await updateBookingStatus(bookingId, "done");
@@ -112,8 +97,8 @@ export async function confirmPayment(formData: FormData) {
     actorUserId: currentUser.id
   });
 
-  if (performedById !== undefined) {
-    await updateBookingRecord(bookingId, { performedById });
+  if (staffAssignment !== undefined) {
+    await updateBookingRecord(bookingId, staffAssignment);
   }
 
   if (paymentInfo.bookingStatus !== "cancelled") {
@@ -139,7 +124,7 @@ export async function updateRecordedPayment(formData: FormData) {
   }
 
   const paymentInfo = await prepareBookingPayment(bookingId, { useAdminClient: true, includeQr: false });
-  const performedById = await resolvePaymentPerformer(formData, paymentInfo);
+  const staffAssignment = await resolvePaymentPerformer(formData, paymentInfo);
 
   await updateBookingPayment({
     bookingId,
@@ -150,8 +135,8 @@ export async function updateRecordedPayment(formData: FormData) {
     actorUserId: currentUser.id
   });
 
-  if (performedById !== undefined) {
-    await updateBookingRecord(bookingId, { performedById });
+  if (staffAssignment !== undefined) {
+    await updateBookingRecord(bookingId, staffAssignment);
   }
 
   revalidateBookingSurfaces(bookingId);

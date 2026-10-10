@@ -104,6 +104,8 @@ export type BookingDetailViewModel = {
   note: string | null;
   performed_by: string | null;
   performed_by_name: string | null;
+  secondary_performed_by: string | null;
+  secondary_performed_by_name: string | null;
   payment: BookingPayment | null;
 };
 
@@ -189,6 +191,7 @@ export type CustomerHistoryViewModel = {
 };
 
 export type ReceiptViewModel = {
+  staff_names: string[];
   booking_id: string;
   booking_no: string;
   receipt_no: string;

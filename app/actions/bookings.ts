@@ -102,6 +102,7 @@ export async function createBooking(formData: FormData) {
   const roomId = String(formData.get("roomId") ?? "");
   const serviceId = String(formData.get("serviceId") ?? "");
   const performedById = String(formData.get("performedById") ?? "").trim();
+  const secondaryPerformedById = String(formData.get("secondaryPerformedById") ?? "").trim();
   const startAt = String(formData.get("startAt"));
   const endAt = String(formData.get("endAt"));
   const totalAmountValue = String(formData.get("totalAmount") ?? "").trim();
@@ -297,18 +298,6 @@ export async function createBooking(formData: FormData) {
     throw new Error("กรุณาเลือกพนักงานผู้ให้บริการ");
   }
 
-  if (performedById) {
-    const { data: performer, error: performerError } = await supabase
-      .from("app_users")
-      .select("id")
-      .eq("id", performedById)
-      .eq("is_active", true)
-      .maybeSingle();
-
-    if (performerError || !performer) {
-      throw new Error("ไม่พบพนักงานผู้ให้บริการ หรือบัญชีถูกปิดใช้งานแล้ว");
-    }
-  }
 
   if (serviceId) {
     const { data: service, error } = await supabase
@@ -354,7 +343,8 @@ export async function createBooking(formData: FormData) {
       note: combinedNote,
       items,
       actorUserId: currentUser.id,
-      performedById: performedById || null
+      performedById: bookingType === "grooming" ? performedById || null : null,
+      secondaryPerformedById: bookingType === "grooming" ? secondaryPerformedById || null : null
     });
 
     if (paymentCollectionType !== "none" && normalizedReceivedAmount > 0) {
@@ -386,23 +376,9 @@ export async function updateBooking(input: {
   totalAmount?: number;
   note?: string;
   performedById?: string | null;
+  secondaryPerformedById?: string | null;
 }) {
   await requireAppUser();
-
-  if (input.performedById) {
-    const supabase = createAdminClient();
-    const { data: performer, error: performerError } = await supabase
-      .from("app_users")
-      .select("id")
-      .eq("id", input.performedById)
-      .eq("is_active", true)
-      .maybeSingle();
-
-    if (performerError || !performer) {
-      throw new Error("ไม่พบพนักงานผู้ให้บริการ หรือบัญชีถูกปิดใช้งานแล้ว");
-    }
-  }
-
   const startAt = input.startAt ? toIsoDateTime(input.startAt, "Start time") : undefined;
   const endAt = input.endAt ? toIsoDateTime(input.endAt, "End time") : undefined;
   if (
@@ -431,9 +407,11 @@ export async function updateBooking(input: {
     roomId: input.roomId,
     totalAmount,
     note: input.note,
-    performedById: input.performedById
+    performedById: input.performedById,
+    secondaryPerformedById: input.secondaryPerformedById
   });
   revalidateBookingSurfaces(input.bookingId);
+  revalidateFinanceSurfaces({ includeReport: true });
 }
 
 export async function quickUpdateBookingStatus(bookingId: string, status: BookingStatus) {

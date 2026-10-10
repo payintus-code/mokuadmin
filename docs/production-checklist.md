@@ -12,6 +12,7 @@
 - Apply database schema and migrations, especially:
   - `supabase/schema.sql`
   - `supabase/migrations/20260530_enable_rls_and_policies.sql`
+  - `supabase/migrations/20261010_booking_second_performer.sql` before deploying two-staff bookings. This adds the second staff field; two selected staff split the received service income equally before commission tiers.
 - Confirm at least one admin account can log in.
 
 ## Security checks

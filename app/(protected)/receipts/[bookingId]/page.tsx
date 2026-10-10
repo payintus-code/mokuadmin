@@ -80,6 +80,13 @@ export default async function ReceiptPage({
           <strong>{receipt.room_name || receipt.services_summary || "-"}</strong>
         </div>
 
+        {receipt.booking_type === "grooming" && receipt.staff_names.length ? (
+          <div>
+            <div className="muted">พนักงานผู้ให้บริการ</div>
+            <strong>{receipt.staff_names.join(" / ")}</strong>
+          </div>
+        ) : null}
+
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <span className="muted">ยอดรวม</span>
           <strong style={{ fontSize: "1.2rem" }}>{formatBaht(receipt.total_amount)}</strong>

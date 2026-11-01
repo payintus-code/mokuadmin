@@ -1,6 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { calculateStaffCommission, calculateStaffCommissionWithSharedIncome } from "@/lib/commission";
+import { allocateGroomingIncome, parseGroomingAllocation } from "@/lib/grooming-allocation";
 import { splitStaffIncome } from "@/lib/booking-staff";
 import type { CashTransaction, Customer, PaymentMethod } from "@/types/database";
 
@@ -171,7 +172,7 @@ export async function getStaffCommissionReport(startDate: string, endDate: strin
   const supabase = await createClient();
   const { data: transactions, error } = await supabase
     .from("cash_transactions")
-    .select("amount, bookings(performed_by, secondary_performed_by)")
+    .select("amount, bookings(performed_by, secondary_performed_by, grooming_allocation)")
     .eq("transaction_type", "income")
     .eq("category", "service_income")
     .gte("transaction_date", startDate)
@@ -188,7 +189,8 @@ export async function getStaffCommissionReport(startDate: string, endDate: strin
     const booking = toSingle(transaction.bookings);
     const amount = Number(transaction.amount ?? 0);
 
-    const shares = splitStaffIncome(amount, booking?.performed_by, booking?.secondary_performed_by);
+    const allocation = parseGroomingAllocation(booking?.grooming_allocation);
+    const shares = allocation ? allocateGroomingIncome(amount, allocation) : splitStaffIncome(amount, booking?.performed_by, booking?.secondary_performed_by);
     if (!shares.length) {
       unassignedServiceIncome += amount;
       continue;

@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import type { GroomingAllocation } from "@/lib/grooming-allocation";
 import { BookingStaffFields } from "@/components/forms/booking-staff-fields";
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -93,6 +94,7 @@ type BookingPaymentFormProps = {
   performedById: string | null;
   performedByName: string | null;
   secondaryPerformedById: string | null;
+  groomingAllocation: GroomingAllocation | null;
   secondaryPerformedByName: string | null;
   staffOptions: StaffOption[];
 };
@@ -110,6 +112,7 @@ export function BookingPaymentForm({
   performedById: initialPerformedById,
   performedByName,
   secondaryPerformedById: initialSecondaryPerformedById,
+  groomingAllocation,
   secondaryPerformedByName,
   staffOptions
 }: BookingPaymentFormProps) {
@@ -120,7 +123,7 @@ export function BookingPaymentForm({
   const [performedById, setPerformedById] = useState(initialPerformedById ?? "");
   const [secondaryPerformedById, setSecondaryPerformedById] = useState(initialSecondaryPerformedById ?? "");
   const staffField = bookingType === "grooming" ? (
-    <BookingStaffFields primaryId={performedById} secondaryId={secondaryPerformedById}
+    <BookingStaffFields groomingAllocation={groomingAllocation} primaryId={performedById} secondaryId={secondaryPerformedById}
       onPrimaryChange={setPerformedById} onSecondaryChange={setSecondaryPerformedById} staffOptions={staffOptions}
       savedStaff={[{ id: initialPerformedById, name: performedByName }, { id: initialSecondaryPerformedById, name: secondaryPerformedByName }]} />
   ) : null;

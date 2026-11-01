@@ -9,6 +9,7 @@ import { requireAppUser } from "@/lib/auth";
 import { hasSupabaseEnv } from "@/lib/env";
 import { getBookingDetail } from "@/lib/bookings";
 import { getActiveStaffOptions } from "@/lib/staff";
+import { GROOMING_PROFILES } from "@/lib/grooming-allocation";
 import { formatBaht, formatDate, formatDateTime } from "@/lib/format";
 
 const bookingTypeLabel = {
@@ -118,6 +119,19 @@ export default async function BookingDetailPage({
           </div>
         ) : null}
 
+        {booking.grooming_allocation ? (
+          <div className="stack">
+            <strong>สัดส่วนงานรายขั้นตอน</strong>
+            {GROOMING_PROFILES[booking.grooming_allocation.profile].map((stage) => {
+              const ids = booking.grooming_allocation!.stages[stage.key];
+              return <div key={stage.key}>
+                <div>{stage.label} — {stage.percent}%</div>
+                <div className="muted">{ids.map((id) => `${id === booking.performed_by ? booking.performed_by_name ?? "พนักงานคนที่ 1" : booking.secondary_performed_by_name ?? "พนักงานคนที่ 2"} ${stage.percent / ids.length}%`).join(" / ")}</div>
+              </div>;
+            })}
+          </div>
+        ) : null}
+
         <div>
           <div className="muted">หมายเหตุ</div>
           <div>{booking.note?.trim() ? booking.note : "-"}</div>
@@ -134,6 +148,7 @@ export default async function BookingDetailPage({
           receiptNo={booking.payment?.receipt_no ?? null}
           note={booking.note}
           performedById={booking.performed_by}
+          groomingAllocation={booking.grooming_allocation}
           secondaryPerformedById={booking.secondary_performed_by}
           performedByName={booking.performed_by_name}
           secondaryPerformedByName={booking.secondary_performed_by_name}

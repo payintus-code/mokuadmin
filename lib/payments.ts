@@ -1,3 +1,4 @@
+import { parseGroomingAllocation, type GroomingAllocation } from "@/lib/grooming-allocation";
 import QRCode from "qrcode";
 import { resolvePaymentStatus } from "@/lib/payment-status";
 import { buildNextReceiptNo, getReceiptNoBase } from "@/lib/receipt-numbers";
@@ -13,6 +14,7 @@ type BookingPaymentSummary = {
   performedById: string | null;
   performedByName: string | null;
   secondaryPerformedById: string | null;
+  groomingAllocation: GroomingAllocation | null;
   secondaryPerformedByName: string | null;
   totalAmount: number;
   paidAmount: number;
@@ -270,6 +272,7 @@ export async function prepareBookingPayment(
         customer_id,
         performed_by,
         secondary_performed_by,
+        grooming_allocation,
         performer:app_users!bookings_performed_by_fkey(full_name),
         secondary_performer:app_users!bookings_secondary_performed_by_fkey(full_name),
         customers!inner(full_name),
@@ -326,6 +329,7 @@ export async function prepareBookingPayment(
     bookingStatus: data.status,
     performedById: data.performed_by ?? null,
     performedByName: toSingle(data.performer)?.full_name ?? null,
+    groomingAllocation: parseGroomingAllocation(data.grooming_allocation),
     secondaryPerformedById: data.secondary_performed_by ?? null,
     secondaryPerformedByName: toSingle(data.secondary_performer)?.full_name ?? null,
     totalAmount,

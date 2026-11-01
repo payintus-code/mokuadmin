@@ -268,7 +268,7 @@ export default async function FinanceReportPage({
                 <div className="muted">ค่าคอมพนักงานรวม</div>
                 <h2 style={{ margin: "6px 0 0", color: "var(--accent-strong)" }}>{formatBaht(staffCommission.totalCommission)}</h2>
                 <p className="muted" style={{ marginBottom: 0 }}>
-                  แยกยอดรับจริงตามพนักงานผู้ให้บริการ แล้วคิดอัตราแบบขั้นบันไดรายคน
+                  แบ่งยอดรับจริงตามสัดส่วนขั้นตอนที่ทำ (ขั้นตอนที่ทำ 2 คนแบ่งคนละครึ่ง) แล้วคิดค่าคอมขั้นบันไดรายคน รายการที่ยังไม่ระบุขั้นตอนใช้การแบ่งยอดแบบเดิม
                 </p>
               </div>
 

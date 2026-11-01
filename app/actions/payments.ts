@@ -1,5 +1,6 @@
 "use server";
 
+import { parseGroomingAllocation } from "@/lib/grooming-allocation";
 import { redirect } from "next/navigation";
 import { requireAppUser } from "@/lib/auth";
 import { updateBookingRecord, updateBookingStatus } from "@/lib/bookings";
@@ -29,9 +30,10 @@ async function resolvePaymentPerformer(
   }
   const performedById = formData.has("performedById") ? String(formData.get("performedById") ?? "").trim() || null : booking.performedById;
   const secondaryPerformedById = formData.has("secondaryPerformedById") ? String(formData.get("secondaryPerformedById") ?? "").trim() || null : booking.secondaryPerformedById;
-  if (performedById === booking.performedById && secondaryPerformedById === booking.secondaryPerformedById) return undefined;
+  const groomingAllocation = formData.has("groomingAllocation") ? parseGroomingAllocation(formData.get("groomingAllocation"), [performedById, secondaryPerformedById].filter((id): id is string => Boolean(id))) : undefined;
+  if (groomingAllocation === undefined && performedById === booking.performedById && secondaryPerformedById === booking.secondaryPerformedById) return undefined;
   await validateStaffAssignment(performedById, secondaryPerformedById, [booking.performedById, booking.secondaryPerformedById]);
-  return { performedById, secondaryPerformedById };
+  return { performedById, secondaryPerformedById, groomingAllocation };
 }
 
 export async function confirmPayment(formData: FormData) {

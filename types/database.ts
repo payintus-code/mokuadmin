@@ -1,3 +1,5 @@
+import type { GroomingAllocation } from "@/lib/grooming-allocation";
+
 export type BookingStatus = "pending" | "confirmed" | "in_progress" | "done" | "cancelled";
 export type BookingType = "grooming" | "hotel";
 export type UserRole = "admin" | "staff";
@@ -105,6 +107,7 @@ export type BookingDetailViewModel = {
   performed_by: string | null;
   performed_by_name: string | null;
   secondary_performed_by: string | null;
+  grooming_allocation: GroomingAllocation | null;
   secondary_performed_by_name: string | null;
   payment: BookingPayment | null;
 };

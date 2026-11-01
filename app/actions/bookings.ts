@@ -1,5 +1,6 @@
 "use server";
 
+import { parseGroomingAllocation, type GroomingAllocation } from "@/lib/grooming-allocation";
 import { redirect } from "next/navigation";
 import {
   cancelBookingRecord,
@@ -344,6 +345,7 @@ export async function createBooking(formData: FormData) {
       items,
       actorUserId: currentUser.id,
       performedById: bookingType === "grooming" ? performedById || null : null,
+      groomingAllocation: bookingType === "grooming" ? parseGroomingAllocation(formData.get("groomingAllocation")) : null,
       secondaryPerformedById: bookingType === "grooming" ? secondaryPerformedById || null : null
     });
 
@@ -377,6 +379,7 @@ export async function updateBooking(input: {
   note?: string;
   performedById?: string | null;
   secondaryPerformedById?: string | null;
+  groomingAllocation?: GroomingAllocation | null;
 }) {
   await requireAppUser();
   const startAt = input.startAt ? toIsoDateTime(input.startAt, "Start time") : undefined;
@@ -408,6 +411,7 @@ export async function updateBooking(input: {
     totalAmount,
     note: input.note,
     performedById: input.performedById,
+    groomingAllocation: input.groomingAllocation,
     secondaryPerformedById: input.secondaryPerformedById
   });
   revalidateBookingSurfaces(input.bookingId);

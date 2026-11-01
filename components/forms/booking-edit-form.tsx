@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useTransition, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import { parseGroomingAllocation, type GroomingAllocation } from "@/lib/grooming-allocation";
 import { BookingStaffFields } from "@/components/forms/booking-staff-fields";
 import { updateBooking } from "@/app/actions/bookings";
 import { useToast } from "@/components/ui/toast-provider";
@@ -21,6 +22,7 @@ type BookingEditFormProps = {
   note: string | null;
   performedById: string | null;
   secondaryPerformedById: string | null;
+  groomingAllocation: GroomingAllocation | null;
   performedByName: string | null;
   secondaryPerformedByName: string | null;
   staffOptions: StaffOption[];
@@ -81,6 +83,7 @@ export function BookingEditForm({
   performedById: initialPerformedById,
   secondaryPerformedById: initialSecondaryPerformedById,
   performedByName,
+  groomingAllocation,
   secondaryPerformedByName,
   staffOptions,
   initialOpen = false
@@ -145,6 +148,7 @@ export function BookingEditForm({
       return;
     }
 
+    const allocationValue = new FormData(event.currentTarget).get("groomingAllocation");
     startTransition(() => {
       void (async () => {
         try {
@@ -155,6 +159,7 @@ export function BookingEditForm({
             totalAmount: nextTotalAmount,
             note,
             performedById: bookingType === "grooming" ? performedById || null : undefined,
+            groomingAllocation: bookingType === "grooming" ? parseGroomingAllocation(allocationValue) : undefined,
             secondaryPerformedById: bookingType === "grooming" ? secondaryPerformedById || null : undefined
           });
           showToast("แก้ไขรายละเอียดคิวเรียบร้อยแล้ว");
@@ -222,7 +227,7 @@ export function BookingEditForm({
       </div>
 
       {bookingType === "grooming" ? (
-        <BookingStaffFields primaryId={performedById} secondaryId={secondaryPerformedById}
+        <BookingStaffFields groomingAllocation={groomingAllocation} primaryId={performedById} secondaryId={secondaryPerformedById}
           onPrimaryChange={setPerformedById} onSecondaryChange={setSecondaryPerformedById} staffOptions={staffOptions} disabled={isPending}
           savedStaff={[{ id: initialPerformedById, name: performedByName }, { id: initialSecondaryPerformedById, name: secondaryPerformedByName }]} />
       ) : null}

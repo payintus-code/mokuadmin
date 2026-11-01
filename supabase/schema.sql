@@ -121,6 +121,7 @@ create table if not exists public.bookings (
   created_by uuid references public.app_users (id) on delete set null,
   performed_by uuid references public.app_users (id) on delete set null,
   secondary_performed_by uuid references public.app_users (id) on delete set null,
+  grooming_allocation jsonb,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   constraint bookings_time_chk check (end_at > start_at),

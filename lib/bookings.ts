@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { evaluateGroomingDraftAvailability, type GroomingOverlapRow } from "@/lib/grooming-draft";
 import { formatCreateBookingError } from "@/lib/booking-errors";
 import { validateBookingAmountEdit } from "@/lib/booking-edit";
+import { parseGroomingAllocation, type GroomingAllocation } from "@/lib/grooming-allocation";
 import { validateStaffAssignment } from "@/lib/staff";
 import type {
   BookingDetailViewModel,
@@ -37,6 +38,7 @@ export type CreateBookingInput = {
   actorUserId?: string | null;
   performedById?: string | null;
   secondaryPerformedById?: string | null;
+  groomingAllocation?: GroomingAllocation | null;
 };
 
 export type AvailableRoomOption = {
@@ -322,6 +324,7 @@ export async function getBookingDetail(bookingId: string): Promise<BookingDetail
         note,
         performed_by,
         secondary_performed_by,
+        grooming_allocation,
         customers!inner(id, full_name, phone),
         pets!bookings_pet_id_fkey!inner(name),
         secondary_pets:pets!bookings_secondary_pet_id_fkey(name),
@@ -374,6 +377,7 @@ export async function getBookingDetail(bookingId: string): Promise<BookingDetail
     note: data.note ?? null,
     performed_by: data.performed_by ?? null,
     performed_by_name: performer?.full_name ?? null,
+    grooming_allocation: parseGroomingAllocation(data.grooming_allocation),
     secondary_performed_by: data.secondary_performed_by ?? null,
     secondary_performed_by_name: toSingle(data.secondary_performer)?.full_name ?? null,
     payment
@@ -510,6 +514,8 @@ export async function checkGroomingDraftAvailability(
 export async function createBookingRecord(input: CreateBookingInput): Promise<string> {
   assertStartBeforeEnd(input.startAt, input.endAt);
   await validateStaffAssignment(input.performedById ?? null, input.secondaryPerformedById ?? null);
+  const allocation = parseGroomingAllocation(input.groomingAllocation, [input.performedById, input.secondaryPerformedById].filter((id): id is string => Boolean(id)));
+  if (allocation && input.bookingType !== "grooming") throw new Error("ขั้นตอนการทำงานใช้ได้เฉพาะบริการอาบน้ำตัดขน");
 
   const supabase = createAdminClient();
   const petIds = [input.petId, input.secondaryPetId].filter((value): value is string => Boolean(value));
@@ -542,10 +548,10 @@ export async function createBookingRecord(input: CreateBookingInput): Promise<st
     throw new Error(formatCreateBookingError(error));
   }
 
-  if (input.performedById || input.secondaryPerformedById) {
+  if (input.performedById || input.secondaryPerformedById || allocation) {
     const { error: performerError } = await supabase
       .from("bookings")
-      .update({ performed_by: input.performedById ?? null, secondary_performed_by: input.secondaryPerformedById ?? null })
+      .update({ performed_by: input.performedById ?? null, secondary_performed_by: input.secondaryPerformedById ?? null, grooming_allocation: allocation })
       .eq("id", bookingId);
 
     if (performerError) {
@@ -605,7 +611,7 @@ export async function updateBookingRecord(
     await Promise.all([
       supabase
         .from("bookings")
-        .select("booking_type, status, pet_id, secondary_pet_id, room_id, start_at, end_at, total_amount, performed_by, secondary_performed_by")
+        .select("booking_type, status, pet_id, secondary_pet_id, room_id, start_at, end_at, total_amount, performed_by, secondary_performed_by, grooming_allocation")
         .eq("id", bookingId)
         .single(),
       supabase
@@ -673,7 +679,14 @@ export async function updateBookingRecord(
     }
   }
 
-  const patch: Record<string, string | number | null> = {};
+  const effectiveAllocation = input.groomingAllocation === undefined ? existingBooking.grooming_allocation : input.groomingAllocation;
+  const allocation = parseGroomingAllocation(effectiveAllocation, [
+    input.performedById === undefined ? existingBooking.performed_by : input.performedById,
+    input.secondaryPerformedById === undefined ? existingBooking.secondary_performed_by : input.secondaryPerformedById
+  ].filter((id): id is string => Boolean(id)));
+  if (allocation && existingBooking.booking_type !== "grooming") throw new Error("ขั้นตอนการทำงานใช้ได้เฉพาะบริการอาบน้ำตัดขน");
+  const patch: Record<string, unknown> = {};
+  if (input.groomingAllocation !== undefined) patch.grooming_allocation = allocation;
 
   if (input.startAt) patch.start_at = input.startAt;
   if (input.endAt) patch.end_at = input.endAt;

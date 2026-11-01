@@ -132,6 +132,272 @@ textarea:focus-visible {
   padding: 72px 16px 40px;
 }
 
+.grooming-workflow {
+  display: grid;
+  gap: 24px;
+}
+
+.grooming-pet-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.grooming-pet-tab {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 16px;
+  border: 1px solid var(--line-strong);
+  border-radius: 16px;
+  color: var(--text);
+  background: var(--card);
+  cursor: pointer;
+  text-align: left;
+  min-width: 0;
+}
+
+.grooming-pet-tab[aria-pressed="true"] {
+  border-color: var(--brand);
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1px var(--brand);
+}
+
+.grooming-pet-avatar {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  color: var(--brand-strong);
+  background: var(--cream);
+  font-weight: 600;
+}
+
+.grooming-pet-tab strong,
+.grooming-pet-tab small {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.grooming-pet-tab small,
+.grooming-pet-status {
+  margin-top: 4px;
+  color: var(--text-soft);
+  font-size: 12px;
+}
+
+.grooming-pet-status {
+  margin-left: auto;
+}
+
+.grooming-pet-panel {
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--card);
+}
+
+.grooming-pet-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.grooming-pet-heading h3 {
+  margin: 3px 0 0;
+}
+
+.grooming-pet-heading > .label {
+  width: min(100%, 240px);
+}
+
+.grooming-bill-summary {
+  padding: 16px;
+  border: 1px solid var(--line-strong);
+  border-radius: 14px;
+  background: var(--accent-soft);
+}
+
+.grooming-bill-summary > div,
+.grooming-summary-row {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin-bottom: 8px;
+}
+
+.grooming-bill-summary p {
+  margin: 10px 0 0;
+  font-size: 13px;
+}
+
+.grooming-bill-summary.is-balanced {
+  background: var(--success-soft);
+  border-color: var(--success);
+}
+
+@media (max-width: 600px) {
+  .grooming-pet-tab { padding: 12px; }
+  .grooming-pet-status { width: 100%; margin-left: 0; }
+  .grooming-pet-panel { padding: 12px; }
+  .grooming-pet-heading > .label { width: 100%; }
+}
+
+.grooming-fieldset,
+.grooming-stage {
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+  border: 0;
+}
+
+.grooming-fieldset > legend,
+.grooming-stage > legend {
+  margin-bottom: 12px;
+  padding: 0;
+  font-weight: 600;
+}
+
+.grooming-profile-options {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.grooming-profile-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 16px;
+  border: 1px solid var(--line-strong);
+  border-radius: 14px;
+  cursor: pointer;
+  background: var(--card);
+}
+
+.grooming-profile-option:has(input:checked) {
+  background: var(--accent-soft);
+  border-color: var(--brand);
+}
+
+.grooming-profile-option input {
+  margin: 4px 0 0;
+  accent-color: var(--brand);
+  flex-shrink: 0;
+}
+
+.grooming-profile-option strong,
+.grooming-profile-option small {
+  display: block;
+}
+
+.grooming-profile-option small,
+.grooming-help {
+  color: var(--text-soft);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.grooming-profile-option small {
+  margin-top: 5px;
+}
+
+.grooming-help {
+  margin: 6px 0 0;
+}
+
+.grooming-stage-list {
+  display: grid;
+  gap: 12px;
+}
+
+.grooming-stage {
+  padding: 16px;
+  border-radius: 14px;
+  background: var(--bg);
+}
+
+.grooming-stage > legend {
+  float: left;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.grooming-step-number {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--cream);
+  color: var(--brand-strong);
+  font-size: 13px;
+}
+
+.grooming-worker-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  clear: both;
+}
+
+.grooming-worker-option {
+  position: relative;
+  flex: 1 1 100px;
+  cursor: pointer;
+}
+
+.grooming-worker-option input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+}
+
+.grooming-worker-option span {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 46px;
+  padding: 10px 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  background: var(--card);
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.grooming-worker-option input:checked + span {
+  color: white;
+  background: var(--brand);
+  border-color: var(--brand);
+}
+
+.grooming-worker-option input:focus-visible + span {
+  outline: 3px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.grooming-workflow fieldset:disabled label {
+  cursor: default;
+  opacity: 0.6;
+}
+
+@media (max-width: 600px) {
+  .grooming-profile-options {
+    grid-template-columns: 1fr;
+  }
+}
+
 .stack {
   display: grid;
   gap: 16px;

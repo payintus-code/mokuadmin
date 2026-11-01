@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/server";
 import type { BookingPayment, PaymentMethod, ReceiptViewModel, ShopSettings } from "@/types/database";
 
 type BookingPaymentSummary = {
+  pets: Array<{ id: string; name: string; species: string }>;
   bookingId: string;
   bookingNo: string;
   bookingType: "grooming" | "hotel";
@@ -276,8 +277,8 @@ export async function prepareBookingPayment(
         performer:app_users!bookings_performed_by_fkey(full_name),
         secondary_performer:app_users!bookings_secondary_performed_by_fkey(full_name),
         customers!inner(full_name),
-        pets!bookings_pet_id_fkey!inner(name),
-        secondary_pets:pets!bookings_secondary_pet_id_fkey(name),
+        pets!bookings_pet_id_fkey!inner(id, name, species),
+        secondary_pets:pets!bookings_secondary_pet_id_fkey(id, name, species),
         rooms(name),
         booking_items(qty, unit_price, services(name)),
         booking_payments(id, booking_id, amount, method, status, reference_no, receipt_no, receipt_issued_at, paid_at, note)
@@ -324,6 +325,7 @@ export async function prepareBookingPayment(
 
   return {
     bookingId: data.id,
+    pets: [primaryPet, secondaryPet].filter((pet): pet is NonNullable<typeof pet> => Boolean(pet)).map((pet) => ({ id: pet.id, name: pet.name, species: pet.species })),
     bookingNo: data.booking_no,
     bookingType: data.booking_type,
     bookingStatus: data.status,

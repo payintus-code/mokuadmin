@@ -11,6 +11,8 @@ import { formatBaht } from "@/lib/format";
 import type { BookingType, PaymentStatus, StaffOption } from "@/types/database";
 
 type BookingEditFormProps = {
+  savedGroomingStaff?: Array<{ id: string; name: string }>;
+  pets: Array<{ id: string; name: string }>;
   bookingId: string;
   bookingType: BookingType;
   startAt: string;
@@ -71,6 +73,8 @@ function formatDuration(minutes: number | null, bookingType: BookingType) {
 }
 
 export function BookingEditForm({
+  savedGroomingStaff = [],
+  pets,
   bookingId,
   bookingType,
   startAt: initialStartAt,
@@ -228,8 +232,9 @@ export function BookingEditForm({
 
       {bookingType === "grooming" ? (
         <BookingStaffFields groomingAllocation={groomingAllocation} primaryId={performedById} secondaryId={secondaryPerformedById}
+          pets={pets} totalAmount={Number(totalAmount)}
           onPrimaryChange={setPerformedById} onSecondaryChange={setSecondaryPerformedById} staffOptions={staffOptions} disabled={isPending}
-          savedStaff={[{ id: initialPerformedById, name: performedByName }, { id: initialSecondaryPerformedById, name: secondaryPerformedByName }]} />
+          savedStaff={[...savedGroomingStaff, { id: initialPerformedById, name: performedByName }, { id: initialSecondaryPerformedById, name: secondaryPerformedByName }]} />
       ) : null}
 
       <label className="label">

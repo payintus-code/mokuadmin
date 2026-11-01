@@ -82,6 +82,8 @@ function PaymentOptionRadioGroup<TValue extends string>({
 }
 
 type BookingPaymentFormProps = {
+  savedGroomingStaff?: Array<{ id: string; name: string }>;
+  pets: Array<{ id: string; name: string }>;
   bookingId: string;
   totalAmount: number;
   paidAmount: number;
@@ -100,6 +102,8 @@ type BookingPaymentFormProps = {
 };
 
 export function BookingPaymentForm({
+  savedGroomingStaff = [],
+  pets,
   bookingId,
   totalAmount,
   paidAmount,
@@ -122,12 +126,13 @@ export function BookingPaymentForm({
   const [editMethod, setEditMethod] = useState<PaymentMethod>(defaultMethod);
   const [performedById, setPerformedById] = useState(initialPerformedById ?? "");
   const [secondaryPerformedById, setSecondaryPerformedById] = useState(initialSecondaryPerformedById ?? "");
-  const staffField = bookingType === "grooming" ? (
-    <BookingStaffFields groomingAllocation={groomingAllocation} primaryId={performedById} secondaryId={secondaryPerformedById}
-      onPrimaryChange={setPerformedById} onSecondaryChange={setSecondaryPerformedById} staffOptions={staffOptions}
-      savedStaff={[{ id: initialPerformedById, name: performedByName }, { id: initialSecondaryPerformedById, name: secondaryPerformedByName }]} />
-  ) : null;
   const [totalAmountValue, setTotalAmountValue] = useState(formatMoneyInput(totalAmount));
+  const staffField = (billTotal: number) => bookingType === "grooming" ? (
+    <BookingStaffFields groomingAllocation={groomingAllocation} primaryId={performedById} secondaryId={secondaryPerformedById}
+      pets={pets} totalAmount={billTotal}
+      onPrimaryChange={setPerformedById} onSecondaryChange={setSecondaryPerformedById} staffOptions={staffOptions}
+      savedStaff={[...savedGroomingStaff, { id: initialPerformedById, name: performedByName }, { id: initialSecondaryPerformedById, name: secondaryPerformedByName }]} />
+  ) : null;
   const [dynamicPromptPayQr, setDynamicPromptPayQr] = useState<{ amount: number; qrDataUrl: string | null; error: string }>({
     amount: 0,
     qrDataUrl: null,
@@ -286,7 +291,7 @@ export function BookingPaymentForm({
           ) : null}
 
           <div className="payment-extra-fields">
-            {staffField}
+            {staffField(Number(totalAmountValue))}
             <label className="label">
               เลขอ้างอิง
               <input className="input" name="referenceNo" defaultValue={payment?.reference_no ?? ""} placeholder="ไม่กรอกก็ได้" disabled={!hasAmountDue} />
@@ -298,7 +303,7 @@ export function BookingPaymentForm({
             </label>
           </div>
 
-          <SubmitButton pendingLabel="กำลังบันทึกการชำระเงิน..." label="บันทึกการชำระเงิน" disabled={!canSubmitPayment} />
+          <SubmitButton pendingLabel="กำลังบันทึก..." label={hasAmountDue ? "บันทึกการชำระเงิน" : "บันทึกผู้ให้บริการ"} disabled={!canSubmitPayment} />
         </section>
 
         {payment?.status === "paid" && payment.receipt_no ? (
@@ -320,7 +325,7 @@ export function BookingPaymentForm({
 
           <form action={updateRecordedPayment} className="stack">
             <input type="hidden" name="bookingId" value={bookingId} />
-            {staffField}
+            {staffField(totalAmount)}
 
             <label className="label">
               ยอดที่บันทึกไว้

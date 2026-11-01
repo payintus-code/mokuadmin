@@ -8,8 +8,9 @@ import { SetupNotice } from "@/components/ui/setup-notice";
 import { requireAppUser } from "@/lib/auth";
 import { hasSupabaseEnv } from "@/lib/env";
 import { getBookingDetail } from "@/lib/bookings";
-import { getActiveStaffOptions } from "@/lib/staff";
-import { GROOMING_PROFILES } from "@/lib/grooming-allocation";
+import { getStaffList } from "@/lib/staff";
+import { GroomingWorkSummary } from "@/components/ui/grooming-work-summary";
+import { isPerPetAllocation } from "@/lib/grooming-allocation";
 import { formatBaht, formatDate, formatDateTime } from "@/lib/format";
 
 const bookingTypeLabel = {
@@ -38,7 +39,12 @@ export default async function BookingDetailPage({
   const currentUser = await requireAppUser();
   const { bookingId } = await params;
   const query = await searchParams;
-  const [booking, staffOptions] = await Promise.all([getBookingDetail(bookingId), getActiveStaffOptions()]);
+  const [booking, allStaff] = await Promise.all([getBookingDetail(bookingId), getStaffList()]);
+  const staffOptions = allStaff.filter((person) => person.is_active);
+  const savedGroomingStaff = allStaff.map((person) => ({ id: person.id, name: person.full_name }));
+  const serviceStaffNames = booking.grooming_allocation && isPerPetAllocation(booking.grooming_allocation)
+    ? Array.from(new Set(booking.grooming_allocation.pets.flatMap((pet) => [pet.performedById, pet.secondaryPerformedById]).filter(Boolean))).map((id) => savedGroomingStaff.find((person) => person.id === id)?.name ?? "พนักงานเดิม")
+    : [booking.performed_by_name, booking.secondary_performed_by_name].filter(Boolean);
   const roomOrService = booking.room_name || booking.services_summary || "-";
   const paidAmount = Number(booking.payment?.amount ?? 0);
   const remainingAmount = Math.max(booking.total_amount - paidAmount, 0);
@@ -115,21 +121,12 @@ export default async function BookingDetailPage({
         {booking.booking_type === "grooming" ? (
           <div>
             <div className="muted">พนักงานผู้ให้บริการ</div>
-            <strong>{[booking.performed_by_name, booking.secondary_performed_by_name].filter(Boolean).join(" / ") || "ยังไม่ระบุ"}</strong>
+            <strong>{serviceStaffNames.join(" / ") || "ยังไม่ระบุ"}</strong>
           </div>
         ) : null}
 
         {booking.grooming_allocation ? (
-          <div className="stack">
-            <strong>สัดส่วนงานรายขั้นตอน</strong>
-            {GROOMING_PROFILES[booking.grooming_allocation.profile].map((stage) => {
-              const ids = booking.grooming_allocation!.stages[stage.key];
-              return <div key={stage.key}>
-                <div>{stage.label} — {stage.percent}%</div>
-                <div className="muted">{ids.map((id) => `${id === booking.performed_by ? booking.performed_by_name ?? "พนักงานคนที่ 1" : booking.secondary_performed_by_name ?? "พนักงานคนที่ 2"} ${stage.percent / ids.length}%`).join(" / ")}</div>
-              </div>;
-            })}
-          </div>
+          <GroomingWorkSummary allocation={booking.grooming_allocation} pets={booking.pets} staff={savedGroomingStaff} />
         ) : null}
 
         <div>
@@ -138,6 +135,8 @@ export default async function BookingDetailPage({
         </div>
 
         <BookingEditForm
+          savedGroomingStaff={savedGroomingStaff}
+          pets={booking.pets}
           bookingId={booking.booking_id}
           bookingType={booking.booking_type}
           startAt={booking.start_at}

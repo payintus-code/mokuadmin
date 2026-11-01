@@ -1,6 +1,7 @@
 "use client";
 
 import { BookingStaffFields } from "@/components/forms/booking-staff-fields";
+import { DRAFT_PET_IDS } from "@/lib/booking-import-pets";
 
 import { Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -238,11 +239,13 @@ function findMatchingService(serviceText: string, services: Service[]) {
 }
 
 function buildImportedContextNote(data: ImportedBookingChatData) {
+  const contactNote = data.additionalPhones.length ? `เบอร์ติดต่อเพิ่มเติม: ${data.additionalPhones.join(", ")}` : "";
   if (data.serviceType === "grooming") {
-    return [`Imported grooming service: ${data.serviceText}`].join("\n");
+    return [`Imported grooming service: ${data.serviceText}`, contactNote].filter(Boolean).join("\n");
   }
 
   const parts = [
+    contactNote,
     data.additionalServiceText ? `Imported additional service: ${data.additionalServiceText}` : "",
     data.stayNights ? `Imported stay nights: ${data.stayNights}` : ""
   ].filter(Boolean);
@@ -341,6 +344,7 @@ export function BookingForm({ initialCustomers, initialPets = [], rooms, service
   const [customerFacebookName, setCustomerFacebookName] = useState("");
   const [customerNote, setCustomerNote] = useState("");
   const [newPetName, setNewPetName] = useState("");
+  const [newSecondaryPetName, setNewSecondaryPetName] = useState("");
   const [newPetSpecies, setNewPetSpecies] = useState("cat");
   const [newPetBreed, setNewPetBreed] = useState("");
   const [newPetWeightKg, setNewPetWeightKg] = useState("");
@@ -441,7 +445,7 @@ export function BookingForm({ initialCustomers, initialPets = [], rooms, service
             : null;
       const nextPetName =
         !newPetName.trim() && importDraft?.petName
-          ? importDraft.petName
+          ? importDraft.petNames[0]
           : !newPetName.trim() && !importDraft?.petName && draft.petName
             ? draft.petName
             : null;
@@ -534,7 +538,7 @@ export function BookingForm({ initialCustomers, initialPets = [], rooms, service
   const canAddSecondaryPet = Boolean(resolvedPrimaryPetId && availableSecondaryPets.length);
 
   useEffect(() => {
-    if (!showSecondaryPet || canAddSecondaryPet) {
+    if (customerMode !== "existing" || !showSecondaryPet || canAddSecondaryPet) {
       return;
     }
 
@@ -544,7 +548,7 @@ export function BookingForm({ initialCustomers, initialPets = [], rooms, service
     }, 0);
 
     return () => window.clearTimeout(timer);
-  }, [canAddSecondaryPet, showSecondaryPet]);
+  }, [canAddSecondaryPet, customerMode, showSecondaryPet]);
 
   const effectiveEndAt = useMemo(() => {
     if (!isGrooming) {
@@ -565,7 +569,7 @@ export function BookingForm({ initialCustomers, initialPets = [], rooms, service
   const computedTotalAmount = manualTotalAmount;
   const totalAmountNumber = Number(computedTotalAmount || 0);
   const receivedAmountNumber = Number(receivedAmount || 0);
-  const selectedPetCount = customerMode === "existing" && showSecondaryPet && resolvedSecondaryPetId ? 2 : 1;
+  const selectedPetCount = customerMode === "existing" ? (showSecondaryPet && resolvedSecondaryPetId ? 2 : 1) : (showSecondaryPet && newSecondaryPetName.trim() ? 2 : 1);
   const hotelDateValidation = validateHotelStayDates(startAt, effectiveEndAt);
   const paymentValidation = validatePaymentDraft({
     showPaymentNow,
@@ -747,6 +751,7 @@ export function BookingForm({ initialCustomers, initialPets = [], rooms, service
     setCustomerFacebookName("");
     setCustomerNote("");
     setNewPetName("");
+    setNewSecondaryPetName("");
     setNewPetSpecies("cat");
     setNewPetBreed("");
     setNewPetWeightKg("");
@@ -779,17 +784,21 @@ export function BookingForm({ initialCustomers, initialPets = [], rooms, service
     const nextCustomers = await searchCustomers(lookupQuery, 50);
     const matchedCustomer = nextCustomers.find((customer) => normalizePhone(customer.phone) === data.normalizedPhone) ?? null;
     const matchedCustomerPets = matchedCustomer ? await getCustomerPets(matchedCustomer.id) : [];
-    const matchedPet =
-      matchedCustomerPets.find((pet) => normalizeComparison(pet.name) === normalizeComparison(data.petName)) ?? null;
+    const matchedPets = data.petNames.map((name) => matchedCustomerPets.find((pet) => pet.name.trim().toLowerCase() === name.toLowerCase()) ?? null);
 
     setCustomers(nextCustomers);
     setPets((current) => mergeById(matchedCustomerPets, current));
-    setCustomerSearch(`${data.customerName} ${data.petName} ${data.phone}`.trim());
+    setCustomerSearch(data.phone || data.customerName);
 
-    if (matchedCustomer && matchedPet) {
+    setSecondaryPetId("");
+    setNewPetName(data.petNames[0]);
+    setShowSecondaryPet(data.petNames.length === 2);
+    setNewSecondaryPetName(data.petNames[1] ?? "");
+    if (matchedCustomer && matchedPets.every((pet) => pet !== null)) {
       setCustomerMode("existing");
       setCustomerId(matchedCustomer.id);
-      setPrimaryPetId(matchedPet.id);
+      setPrimaryPetId(matchedPets[0]!.id);
+      setSecondaryPetId(matchedPets[1]?.id ?? "");
       return;
     }
 
@@ -798,7 +807,7 @@ export function BookingForm({ initialCustomers, initialPets = [], rooms, service
     setCustomerPhone(matchedCustomer?.phone ?? data.phone);
     setCustomerFacebookName(matchedCustomer?.facebook_name ?? "");
     setCustomerNote(matchedCustomer?.note ?? "");
-    setNewPetName(data.petName);
+    setNewPetName(data.petNames[0]);
     setNewPetSpecies(data.speciesHint ?? "cat");
   }
 
@@ -825,12 +834,15 @@ export function BookingForm({ initialCustomers, initialPets = [], rooms, service
     setIsImportOpen(true);
     try {
       await applyImportedCustomer(data);
-    } catch (error) {
-      warnings.push(error instanceof Error ? error.message : "Unable to lookup imported customer");
+    } catch {
+      warnings.push("ยังค้นหาข้อมูลเดิมไม่ได้ กรุณาตรวจชื่อลูกค้าและสัตว์เลี้ยงก่อนบันทึก");
       setCustomerMode("new");
       setCustomerFullName(data.customerName);
       setCustomerPhone(data.phone);
-      setNewPetName(data.petName);
+      setNewPetName(data.petNames[0]);
+      setNewSecondaryPetName(data.petNames[1] ?? "");
+      setSecondaryPetId("");
+      setShowSecondaryPet(data.petNames.length === 2);
       setNewPetSpecies(data.speciesHint ?? "cat");
     }
 
@@ -919,7 +931,7 @@ export function BookingForm({ initialCustomers, initialPets = [], rooms, service
   const customerReady =
     customerMode === "existing"
       ? Boolean(resolvedCustomerId && resolvedPrimaryPetId)
-      : Boolean(customerFullName && customerPhone && newPetName && newPetSpecies);
+      : Boolean(customerFullName && customerPhone && newPetName && newPetSpecies && (!showSecondaryPet || newSecondaryPetName.trim()));
 
   const customerStatusMessage =
     customerMode === "existing"
@@ -1008,7 +1020,7 @@ export function BookingForm({ initialCustomers, initialPets = [], rooms, service
       value:
         customerMode === "existing"
           ? [resolvedPrimaryPet?.name, showSecondaryPet ? resolvedSecondaryPet?.name : ""].filter(Boolean).join(", ") || "ยังไม่เลือก"
-          : newPetName || "ยังไม่กรอก"
+          : [newPetName, showSecondaryPet ? newSecondaryPetName : ""].filter(Boolean).join(" / ") || "ยังไม่กรอก"
     },
     {
       label: "ประเภทคิว",
@@ -1124,6 +1136,7 @@ export function BookingForm({ initialCustomers, initialPets = [], rooms, service
             {importPreview ? (
               <div className="soft-note">
                 <strong>นำเข้าข้อมูลแล้ว</strong>
+                <p className="label-hint">สัตว์เลี้ยง {importPreview.data.petNames.length} ตัว: {importPreview.data.petNames.join(" / ")}</p>
                 <p className="label-hint">ระบบเติมข้อมูลให้ในฟอร์มแล้ว และจะให้ตรวจสอบอีกครั้งตอนกดบันทึกการจอง</p>
 
                 {importPreview.warnings.length ? (
@@ -1319,6 +1332,8 @@ export function BookingForm({ initialCustomers, initialPets = [], rooms, service
                 <input
                   className="input"
                   name="newPetName"
+                  pattern="[^/／]+"
+                  title="กรอกชื่อน้องหนึ่งตัวต่อช่อง"
                   value={newPetName}
                   onChange={(event) => setNewPetName(event.target.value)}
                   placeholder="ชื่อน้อง"
@@ -1341,8 +1356,17 @@ export function BookingForm({ initialCustomers, initialPets = [], rooms, service
               </label>
             </div>
 
+            {showSecondaryPet ? <label className="label">ชื่อน้องตัวที่ 2
+              <input className="input" name="newSecondaryPetName" value={newSecondaryPetName} onChange={(event) => setNewSecondaryPetName(event.target.value)}
+                pattern="[^/／]+" title="กรอกชื่อน้องหนึ่งตัวต่อช่อง" placeholder="ชื่อน้องตัวที่ 2" required />
+              <span className="label-hint">จะบันทึกเป็นสัตว์เลี้ยงอีกตัวในบิลเดียวกัน</span>
+            </label> : null}
+            <button className="btn btn-secondary" type="button" onClick={() => { setShowSecondaryPet((current) => !current); setNewSecondaryPetName(""); }}>
+              {showSecondaryPet ? "นำตัวที่ 2 ออกจากคิว" : "เพิ่มสัตว์เลี้ยงตัวที่ 2"}
+            </button>
+
             {importPreview && customerMode === "new" ? (
-              <FieldMessage tone="warning">ข้อความที่ import ยังจับคู่ลูกค้า/สัตว์เลี้ยงเดิมไม่ได้ ฟอร์มนี้จะสร้างข้อมูลใหม่เมื่อบันทึก</FieldMessage>
+              <FieldMessage tone="warning">ตรวจชื่อแต่ละตัวก่อนบันทึก ระบบจะใช้ข้อมูลเดิมที่ตรงกัน และเพิ่มเฉพาะสัตว์เลี้ยงที่ยังไม่มี</FieldMessage>
             ) : null}
           </div>
         )}
@@ -1434,6 +1458,8 @@ export function BookingForm({ initialCustomers, initialPets = [], rooms, service
             </label>
 
             <BookingStaffFields primaryId={performedById} secondaryId={secondaryPerformedById}
+              pets={customerMode === "existing" ? [resolvedPrimaryPet, showSecondaryPet ? resolvedSecondaryPet : null].filter((pet): pet is NonNullable<typeof pet> => Boolean(pet)).map((pet) => ({ id: pet.id, name: pet.name }))
+                : [{ id: DRAFT_PET_IDS[0], name: newPetName }, ...(showSecondaryPet ? [{ id: DRAFT_PET_IDS[1], name: newSecondaryPetName }] : [])].filter((pet) => pet.name.trim())} totalAmount={totalAmountNumber}
               onPrimaryChange={setPerformedById} onSecondaryChange={setSecondaryPerformedById} staffOptions={staffOptions} required />
 
             {groomingGuard.message ? (

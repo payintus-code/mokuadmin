@@ -1,6 +1,15 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { StaffOption } from "@/types/database";
 import { validateBookingStaff } from "@/lib/booking-staff";
+import { isPerPetAllocation, type GroomingAllocation } from "@/lib/grooming-allocation";
+
+export async function validateGroomingStaffAllocation(allocation: GroomingAllocation | null, previous: GroomingAllocation | null = null, previousStaffIds: Array<string | null> = []) {
+  if (!allocation || !isPerPetAllocation(allocation)) return;
+  for (const pet of allocation.pets) {
+    const saved = previous && isPerPetAllocation(previous) ? previous.pets.find((entry) => entry.petId === pet.petId) : null;
+    await validateStaffAssignment(pet.performedById, pet.secondaryPerformedById, saved ? [saved.performedById, saved.secondaryPerformedById] : previous && isPerPetAllocation(previous) ? [] : previousStaffIds);
+  }
+}
 
 export async function validateStaffAssignment(primaryId: string | null, secondaryId: string | null, existingIds: Array<string | null> = []) {
   validateBookingStaff(primaryId, secondaryId);

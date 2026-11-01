@@ -22,9 +22,11 @@ test("parses separate owner and phone lines with confirmation footer", () => {
     assert.deepEqual(result.data, {
       serviceType: "grooming",
       petName: "น้องคิงคอง (ปอม)",
+      petNames: ["น้องคิงคอง (ปอม)"],
       customerName: "คุณนุ่น",
       phone: "065-6496199",
       normalizedPhone: "0656496199",
+      additionalPhones: [],
       serviceText: "อาบน้ำ",
       depositAmount: 200,
       appointmentDateTime: "2026-10-01 12:00",
@@ -157,4 +159,60 @@ test("returns clear error when required fields are missing", () => {
   assert.match(result.error, /customerName/);
   assert.match(result.error, /phone/);
   assert.match(result.error, /serviceText/);
+});
+
+const twoCatBooking = `✅ ยืนยันการจอง
+ชื่อน้อง : น้องโอ๊ะ/อุง
+ชื่อเจ้าของ : คุณฝน
+เบอร์โทร : 080-4803774,088-0663145
+รายการ : อาบน้ำ
+(โอนมัดจำ 200฿)
+วันเวลา : 11/11/69 13:00
+
+✅รับมัดจำการโอนจอง
+หากต้องการนั่งรอน้อง หรือต้องการเฝ้าดูน้อง สามารถแจ้งทางร้านล่วงหน้าได้เลยนะคะ เพื่อจัดพื้นที่ไว้ให้ค่ะ 🐱💖`;
+
+test("imports the two-cat confirmation as separate pets and preserves backup contact", () => {
+  const result = parseImportedBookingChat(twoCatBooking);
+  assert.equal(result.success, true);
+  if (!result.success) return;
+  assert.deepEqual(result.data.petNames, ["น้องโอ๊ะ", "อุง"]);
+  assert.equal(result.data.petName, "น้องโอ๊ะ/อุง");
+  assert.equal(result.data.customerName, "คุณฝน");
+  assert.equal(result.data.phone, "080-4803774");
+  assert.equal(result.data.normalizedPhone, "0804803774");
+  assert.deepEqual(result.data.additionalPhones, ["088-0663145"]);
+  assert.equal(result.data.depositAmount, 200);
+  assert.equal(result.data.serviceType, "grooming");
+  if (result.data.serviceType === "grooming") assert.equal(result.data.appointmentDateTime, "2026-11-11 13:00");
+  assert.match(result.warnings.join(" "), /เบอร์เพิ่มเติม/);
+});
+
+test("trims whitespace around slash while keeping spaces inside an individual pet name", () => {
+  for (const names of [" น้องโอ๊ะ / อุง ", "น้องโอ๊ะ／อุง"]) {
+    const result = parseImportedBookingChat(twoCatBooking.replace("น้องโอ๊ะ/อุง", names));
+    assert.equal(result.success, true);
+    if (result.success) assert.deepEqual(result.data.petNames, ["น้องโอ๊ะ", "อุง"]);
+  }
+  const result = parseImportedBookingChat(twoCatBooking.replace("น้องโอ๊ะ/อุง", "น้องโอ๊ะ จอมซน"));
+  assert.equal(result.success, true);
+  if (result.success) assert.deepEqual(result.data.petNames, ["น้องโอ๊ะ จอมซน"]);
+});
+
+test("rejects missing, duplicate or excessive names instead of silently losing a pet", () => {
+  for (const names of ["น้องโอ๊ะ/", "/อุง", "น้องโอ๊ะ//อุง", "น้องโอ๊ะ/น้องโอ๊ะ", "น้องโอ๊ะ/อุง/โมจิ"]) {
+    const result = parseImportedBookingChat(twoCatBooking.replace("น้องโอ๊ะ/อุง", names));
+    assert.equal(result.success, false, names);
+  }
+});
+
+test("hotel imports also split two named pets", () => {
+  const result = parseImportedBookingChat(`รายละเอียดการเข้าพัก Moku Hotel
+ชื่อน้องแมว : น้องโอ๊ะ / อุง
+ชื่อเจ้าของ : คุณฝน
+เบอร์โทร : 080-4803774
+เข้าพัก : 11/11/69-12/11/69
+จำนวนคืน : 1 คืน`);
+  assert.equal(result.success, true);
+  if (result.success) assert.deepEqual(result.data.petNames, ["น้องโอ๊ะ", "อุง"]);
 });

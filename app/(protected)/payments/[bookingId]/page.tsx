@@ -1,11 +1,13 @@
 import { BookingPaymentForm } from "@/components/forms/booking-payment-form";
+import { BookingPaymentPets } from "@/components/forms/booking-payment-pets";
+import { lookupCustomerPets } from "@/lib/lookups";
 import { PageHeader } from "@/components/ui/page-header";
 import { PaymentStatusBadge } from "@/components/ui/payment-status-badge";
 import { SetupNotice } from "@/components/ui/setup-notice";
 import { requireAppUser } from "@/lib/auth";
 import { hasSupabaseEnv } from "@/lib/env";
 import { prepareBookingPayment } from "@/lib/payments";
-import { getActiveStaffOptions } from "@/lib/staff";
+import { getStaffList } from "@/lib/staff";
 
 export const dynamic = "force-dynamic";
 
@@ -26,10 +28,11 @@ export default async function PaymentPage({
   await requireAppUser();
 
   const { bookingId } = await params;
-  const [paymentInfo, staffOptions] = await Promise.all([
+  const [paymentInfo, allStaff] = await Promise.all([
     prepareBookingPayment(bookingId, { useAdminClient: true }),
-    getActiveStaffOptions()
+    getStaffList()
   ]);
+  const customerPets = paymentInfo.bookingType === "grooming" && paymentInfo.customerId ? await lookupCustomerPets(paymentInfo.customerId) : [];
 
   return (
     <main className="stack">
@@ -63,7 +66,12 @@ export default async function PaymentPage({
         </div>
       </section>
 
+      {paymentInfo.bookingType === "grooming" ? <BookingPaymentPets key={paymentInfo.pets.map((pet) => `${pet.id}:${pet.name}`).join("|")} bookingId={paymentInfo.bookingId} pets={paymentInfo.pets} customerPets={customerPets} /> : null}
+
       <BookingPaymentForm
+        key={paymentInfo.pets.map((pet) => pet.id).join("|")}
+        savedGroomingStaff={allStaff.map((person) => ({ id: person.id, name: person.full_name }))}
+        pets={paymentInfo.pets}
         bookingId={paymentInfo.bookingId}
         totalAmount={paymentInfo.totalAmount}
         paidAmount={paymentInfo.paidAmount}
@@ -78,7 +86,7 @@ export default async function PaymentPage({
         groomingAllocation={paymentInfo.groomingAllocation}
         secondaryPerformedById={paymentInfo.secondaryPerformedById}
         secondaryPerformedByName={paymentInfo.secondaryPerformedByName}
-        staffOptions={staffOptions}
+        staffOptions={allStaff.filter((person) => person.is_active)}
       />
     </main>
   );

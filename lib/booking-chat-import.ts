@@ -3,9 +3,11 @@ export type ImportedServiceType = "grooming" | "hotel";
 type ImportedBookingBase = {
   serviceType: ImportedServiceType;
   petName: string;
+  petNames: string[];
   customerName: string;
   phone: string;
   normalizedPhone: string;
+  additionalPhones: string[];
   depositAmount: number | null;
   speciesHint: "cat" | "dog" | null;
 };
@@ -44,6 +46,14 @@ export type ImportedBookingChatResult = ImportedBookingChatSuccess | ImportedBoo
 
 function normalizeLineEndings(value: string) {
   return value.replace(/\r\n/g, "\n").trim();
+}
+
+export function splitImportedPetNames(value: string): string[] {
+  const names = value.split(/[\/／]/).map((name) => name.trim());
+  if (names.some((name) => !name)) throw new Error("กรุณาระบุชื่อน้องให้ครบทั้งก่อนและหลังเครื่องหมาย /");
+  if (names.length > 2) throw new Error("ระบบรองรับสัตว์เลี้ยงสูงสุด 2 ตัวต่อบิล กรุณาแยกคิวสำหรับตัวที่เหลือ");
+  if (new Set(names.map((name) => name.toLowerCase())).size !== names.length) throw new Error("ชื่อน้องซ้ำกัน กรุณาตรวจสอบชื่อแต่ละตัวก่อนนำเข้า");
+  return names;
 }
 
 function escapeRegExp(value: string) {
@@ -91,8 +101,9 @@ function readOwnerInfo(source: string) {
   const customerName = readLabeledValue(source, ["ชื่อเจ้าของ"]) || combined.customerName;
   const phoneLine = readLabeledValue(source, ["เบอร์โทร"]);
   const phone = phoneLine ? parseOwnerAndPhone(phoneLine).phone : combined.phone;
-
-  return { customerName, phone, normalizedPhone: normalizePhone(phone) };
+  const additionalPhones = (phoneLine.match(/\+?\d[\d -]{7,}\d/g) ?? []).map((value) => value.trim())
+    .filter((value, index, values) => normalizePhone(value) !== normalizePhone(phone) && values.findIndex((other) => normalizePhone(other) === normalizePhone(value)) === index);
+  return { customerName, phone, normalizedPhone: normalizePhone(phone), additionalPhones };
 }
 
 function toGregorianYear(shortThaiYear: number) {
@@ -193,9 +204,11 @@ function parseGrooming(source: string): ImportedBookingChatResult {
     data: {
       serviceType: "grooming",
       petName,
+      petNames: splitImportedPetNames(petName),
       customerName: ownerInfo.customerName,
       phone: ownerInfo.phone,
       normalizedPhone: ownerInfo.normalizedPhone,
+      additionalPhones: ownerInfo.additionalPhones,
       serviceText,
       depositAmount,
       appointmentDateTime: appointmentDateTime!,
@@ -246,9 +259,11 @@ function parseHotel(source: string): ImportedBookingChatResult {
     data: {
       serviceType: "hotel",
       petName,
+      petNames: splitImportedPetNames(petName),
       customerName: ownerInfo.customerName,
       phone: ownerInfo.phone,
       normalizedPhone: ownerInfo.normalizedPhone,
+      additionalPhones: ownerInfo.additionalPhones,
       stayNights,
       checkInDate: checkInDate!,
       checkOutDate: checkOutDate!,
@@ -288,5 +303,11 @@ export function parseImportedBookingChat(rawText: string): ImportedBookingChatRe
     };
   }
 
-  return serviceType === "grooming" ? parseGrooming(source) : parseHotel(source);
+  try {
+    const result = serviceType === "grooming" ? parseGrooming(source) : parseHotel(source);
+    if (result.success && result.data.additionalPhones.length) result.warnings.push("ใช้เบอร์แรกเป็นเบอร์หลัก และเก็บเบอร์เพิ่มเติมในหมายเหตุคิว");
+    return result;
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : "ไม่สามารถแยกชื่อน้องจากข้อความได้", warnings: [], detectedServiceType: serviceType };
+  }
 }

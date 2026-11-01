@@ -89,6 +89,7 @@ export type ScheduleCalendarDay = {
 };
 
 export type BookingDetailViewModel = {
+  pets: Array<{ id: string; name: string }>;
   booking_id: string;
   booking_no: string;
   booking_type: BookingType;

@@ -1,12 +1,12 @@
 "use server";
 
-import { parseGroomingAllocation } from "@/lib/grooming-allocation";
+import { isPerPetAllocation, parseGroomingAllocation, validatePetGroomingAllocation, type GroomingAllocation } from "@/lib/grooming-allocation";
 import { redirect } from "next/navigation";
 import { requireAppUser } from "@/lib/auth";
 import { updateBookingRecord, updateBookingStatus } from "@/lib/bookings";
 import { confirmBookingPayment, prepareBookingPayment, updateBookingPayment } from "@/lib/payments";
 import { revalidateBookingSurfaces, revalidateFinanceSurfaces } from "@/lib/revalidation";
-import { validateStaffAssignment } from "@/lib/staff";
+import { validateGroomingStaffAllocation, validateStaffAssignment } from "@/lib/staff";
 import type { BookingType, PaymentMethod } from "@/types/database";
 
 function withSaveToast(path: string) {
@@ -23,7 +23,8 @@ function isSameMoney(left: number, right: number) {
 
 async function resolvePaymentPerformer(
   formData: FormData,
-  booking: { bookingType: BookingType; performedById: string | null; secondaryPerformedById: string | null }
+  booking: { bookingType: BookingType; performedById: string | null; secondaryPerformedById: string | null; groomingAllocation: GroomingAllocation | null; pets: Array<{ id: string }>; totalAmount: number },
+  totalAmount = booking.totalAmount
 ) {
   if (booking.bookingType !== "grooming" || (!formData.has("performedById") && !formData.has("secondaryPerformedById"))) {
     return undefined;
@@ -32,7 +33,12 @@ async function resolvePaymentPerformer(
   const secondaryPerformedById = formData.has("secondaryPerformedById") ? String(formData.get("secondaryPerformedById") ?? "").trim() || null : booking.secondaryPerformedById;
   const groomingAllocation = formData.has("groomingAllocation") ? parseGroomingAllocation(formData.get("groomingAllocation"), [performedById, secondaryPerformedById].filter((id): id is string => Boolean(id))) : undefined;
   if (groomingAllocation === undefined && performedById === booking.performedById && secondaryPerformedById === booking.secondaryPerformedById) return undefined;
-  await validateStaffAssignment(performedById, secondaryPerformedById, [booking.performedById, booking.secondaryPerformedById]);
+  if (groomingAllocation && isPerPetAllocation(groomingAllocation)) {
+    validatePetGroomingAllocation(groomingAllocation, booking.pets.map((pet) => pet.id), totalAmount);
+    await validateGroomingStaffAllocation(groomingAllocation, booking.groomingAllocation, [booking.performedById, booking.secondaryPerformedById]);
+  } else {
+    await validateStaffAssignment(performedById, secondaryPerformedById, [booking.performedById, booking.secondaryPerformedById]);
+  }
   return { performedById, secondaryPerformedById, groomingAllocation };
 }
 
@@ -55,7 +61,7 @@ export async function confirmPayment(formData: FormData) {
   }
 
   const paymentInfo = await prepareBookingPayment(bookingId, { useAdminClient: true, includeQr: false });
-  const staffAssignment = await resolvePaymentPerformer(formData, paymentInfo);
+  const staffAssignment = await resolvePaymentPerformer(formData, paymentInfo, normalizeMoney(totalAmount));
   const nextTotalAmount = normalizeMoney(totalAmount);
   const paidAmount = normalizeMoney(paymentInfo.paidAmount);
 
@@ -69,13 +75,9 @@ export async function confirmPayment(formData: FormData) {
     throw new Error("ยอดรวมต้องไม่น้อยกว่ายอดมัดจำที่รับแล้ว");
   }
 
-  if (!isSameMoney(nextTotalAmount, paymentInfo.totalAmount)) {
-    await updateBookingRecord(bookingId, { totalAmount: nextTotalAmount });
-  }
-
   if (remainingAmount <= 0) {
-    if (staffAssignment !== undefined) {
-      await updateBookingRecord(bookingId, staffAssignment);
+    if (staffAssignment !== undefined || !isSameMoney(nextTotalAmount, paymentInfo.totalAmount)) {
+      await updateBookingRecord(bookingId, { ...staffAssignment, totalAmount: nextTotalAmount });
     }
     if (paymentInfo.bookingStatus !== "cancelled") {
       await updateBookingStatus(bookingId, "done");
@@ -90,6 +92,10 @@ export async function confirmPayment(formData: FormData) {
     throw new Error("ยอดชำระต้องเท่ากับยอดคงเหลือ");
   }
 
+  if (staffAssignment !== undefined || !isSameMoney(nextTotalAmount, paymentInfo.totalAmount)) {
+    await updateBookingRecord(bookingId, { ...staffAssignment, totalAmount: nextTotalAmount });
+  }
+
   await confirmBookingPayment({
     bookingId,
     amount: remainingAmount,
@@ -98,10 +104,6 @@ export async function confirmPayment(formData: FormData) {
     note: note || undefined,
     actorUserId: currentUser.id
   });
-
-  if (staffAssignment !== undefined) {
-    await updateBookingRecord(bookingId, staffAssignment);
-  }
 
   if (paymentInfo.bookingStatus !== "cancelled") {
     await updateBookingStatus(bookingId, "done");

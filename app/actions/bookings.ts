@@ -1,6 +1,7 @@
 "use server";
 
 import { parseGroomingAllocation, type GroomingAllocation } from "@/lib/grooming-allocation";
+import { remapDraftGroomingPets, resolveNamedBookingPets } from "@/lib/booking-import-pets";
 import { redirect } from "next/navigation";
 import {
   cancelBookingRecord,
@@ -99,7 +100,7 @@ export async function createBooking(formData: FormData) {
   const customerMode = String(formData.get("customerMode") ?? "existing");
   let customerId = String(formData.get("customerId") ?? "").trim();
   let petId = String(formData.get("petId") ?? "").trim();
-  const secondaryPetId = String(formData.get("secondaryPetId") ?? "");
+  let secondaryPetId = String(formData.get("secondaryPetId") ?? "").trim();
   const roomId = String(formData.get("roomId") ?? "");
   const serviceId = String(formData.get("serviceId") ?? "");
   const performedById = String(formData.get("performedById") ?? "").trim();
@@ -118,6 +119,7 @@ export async function createBooking(formData: FormData) {
   const customerFacebookName = String(formData.get("customerFacebookName") ?? "").trim();
   const customerNote = String(formData.get("customerNote") ?? "").trim();
   const petName = String(formData.get("newPetName") ?? "").trim();
+  const secondaryPetName = String(formData.get("newSecondaryPetName") ?? "").trim();
   const petSpecies = String(formData.get("newPetSpecies") ?? "").trim();
   const petBreed = String(formData.get("newPetBreed") ?? "").trim();
   const petWeightValue = String(formData.get("newPetWeightKg") ?? "").trim();
@@ -203,68 +205,28 @@ export async function createBooking(formData: FormData) {
       customerId = newCustomer.id;
     }
 
-    const { data: existingPet } = await supabase
-      .from("pets")
-      .select("id")
-      .eq("customer_id", customerId)
-      .eq("name", petName)
-      .eq("is_active", true)
-      .maybeSingle();
-
-    if (existingPet) {
-      petId = existingPet.id;
-
-      const petWeightKg = petWeightValue ? Number(petWeightValue) : null;
-      const petPatch: Record<string, string | number | null> = {};
-
-      if (petSpecies) {
-        petPatch.species = petSpecies;
+    const resolvedPetIds = await resolveNamedBookingPets([
+      { name: petName, species: petSpecies, breed: petBreed || undefined, weight_kg: petWeightKg ?? undefined,
+        temperament_note: petTemperamentNote || undefined, allergy_note: petAllergyNote || undefined },
+      ...(secondaryPetName ? [{ name: secondaryPetName, species: petSpecies }] : [])
+    ], {
+      async find(name) {
+        const { data, error } = await supabase.from("pets").select("id").eq("customer_id", customerId).eq("name", name).eq("is_active", true).maybeSingle();
+        if (error) throw new Error(error.message);
+        return data?.id ?? null;
+      },
+      async create(pet) {
+        const { data, error } = await supabase.from("pets").insert({ ...pet, customer_id: customerId }).select("id").single();
+        if (error || !data) throw new Error(error?.message ?? "Unable to create pet");
+        return data.id;
+      },
+      async update(id, pet) {
+        const { error } = await supabase.from("pets").update(pet).eq("id", id).eq("customer_id", customerId);
+        if (error) throw new Error(error.message);
       }
-
-      if (petBreed) {
-        petPatch.breed = petBreed;
-      }
-
-      if (petWeightKg !== null) {
-        petPatch.weight_kg = petWeightKg;
-      }
-
-      if (petTemperamentNote) {
-        petPatch.temperament_note = petTemperamentNote;
-      }
-
-      if (petAllergyNote) {
-        petPatch.allergy_note = petAllergyNote;
-      }
-
-      if (Object.keys(petPatch).length) {
-        const { error: updatePetError } = await supabase.from("pets").update(petPatch).eq("id", petId);
-
-        if (updatePetError) {
-          throw new Error(updatePetError.message);
-        }
-      }
-    } else {
-      const { data: newPet, error: petError } = await supabase
-        .from("pets")
-        .insert({
-          customer_id: customerId,
-          name: petName,
-          species: petSpecies,
-          breed: petBreed || null,
-          weight_kg: petWeightKg,
-          temperament_note: petTemperamentNote || null,
-          allergy_note: petAllergyNote || null
-        })
-        .select("id")
-        .single();
-
-      if (petError || !newPet) {
-        throw new Error(petError?.message ?? "Unable to create pet");
-      }
-
-      petId = newPet.id;
-    }
+    });
+    petId = resolvedPetIds[0];
+    secondaryPetId = resolvedPetIds[1] ?? "";
   }
 
   if (!customerId || !petId) {
@@ -345,7 +307,7 @@ export async function createBooking(formData: FormData) {
       items,
       actorUserId: currentUser.id,
       performedById: bookingType === "grooming" ? performedById || null : null,
-      groomingAllocation: bookingType === "grooming" ? parseGroomingAllocation(formData.get("groomingAllocation")) : null,
+      groomingAllocation: bookingType === "grooming" ? remapDraftGroomingPets(parseGroomingAllocation(formData.get("groomingAllocation")), [petId, secondaryPetId].filter(Boolean)) : null,
       secondaryPerformedById: bookingType === "grooming" ? secondaryPerformedById || null : null
     });
 
